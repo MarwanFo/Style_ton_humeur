@@ -1,0 +1,103 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model User {
+  id                 Int                 @id @default(autoincrement())
+  email              String              @unique
+  passwordHash       String
+  displayName        String
+  gender             String
+  age                Int
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  
+  profilePreferences ProfilePreference?
+  dailyCheckIns      DailyCheckIn[]
+  recommendations    Recommendation[]
+  streak             Streak?
+  userBadges         UserBadge[]
+}
+
+model ProfilePreference {
+  userId           Int      @id
+  styleTags        Json     @default("[]")
+  colorPreferences Json     @default("[]")
+  musicPreferences Json     @default("[]")
+  updatedAt        DateTime @updatedAt
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model DailyCheckIn {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  checkinDate   DateTime @default(now()) @db.Date
+  moodDetected  String
+  moodSelected  String
+  answers       Json
+  createdAt     DateTime @default(now())
+
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+
+  @@unique([userId, checkinDate])
+}
+
+model Recommendation {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  checkinId          Int
+  recommendationDate DateTime @default(now()) @db.Date
+  outfits            Json
+  makeup             Json
+  music              Json
+  feedbackPositive   Boolean?
+  createdAt          DateTime @default(now())
+
+  user               User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyCheckIn       DailyCheckIn  @relation(fields: [checkinId], references: [id], onDelete: Cascade)
+}
+
+model Streak {
+  userId               Int       @id
+  currentStreak        Int       @default(0)
+  maxStreak            Int       @default(0)
+  lastCheckinDate      DateTime? @db.Date
+  weeklyFreezeUsedDate DateTime? @db.Date
+  updatedAt            DateTime  @updatedAt
+
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id          Int          @id @default(autoincrement())
+  code        String       @unique
+  name        String
+  description String
+  criteria    Json
+
+  userBadges  UserBadge[]
+}
+
+model UserBadge {
+  userId      Int
+  badgeId     Int
+  progress    Int      @default(0)
+  unlockedAt  DateTime?
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeId])
+}
