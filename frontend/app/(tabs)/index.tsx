@@ -14,6 +14,7 @@ import Animated, {
   FadeInLeft,
   FadeIn
 } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
@@ -27,6 +28,7 @@ const MOODS = [
 ];
 
 export default function HomeScreen() {
+  const insets = useSafeAreaInsets();
   const [selectedMood, setSelectedMood] = useState(MOODS[1]); // Calme by default
   const [isPlaying, setIsPlaying] = useState(false);
   const [freezeActive, setFreezeActive] = useState(false);
@@ -60,14 +62,14 @@ export default function HomeScreen() {
       <Animated.View style={[styles.orb, styles.orb2, { backgroundColor: selectedMood.accent + '15' }, animatedOrb2]} />
 
       <ScrollView 
-        contentContainerStyle={styles.scrollContent} 
+        contentContainerStyle={[styles.scrollContent, { paddingTop: insets.top + 16, paddingBottom: insets.bottom + 90 }]} 
         showsVerticalScrollIndicator={false}
       >
         {/* BRAND NAVIGATION & PROFILE */}
         <Animated.View entering={FadeInDown.duration(800).springify()} style={styles.header}>
-          <View>
-            <Text style={styles.brandTitle}>S T Y L E   T O N   H U M E U R</Text>
-            <Text style={styles.greeting}>Bonjour, <Text style={[styles.userName, { color: selectedMood.accent }]}>Chaymae</Text> ✨</Text>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text numberOfLines={1} style={styles.brandTitle}>S T Y L E   T O N   H U M E U R</Text>
+            <Text numberOfLines={1} style={styles.greeting}>Bonjour, <Text style={[styles.userName, { color: selectedMood.accent }]}>Chaymae</Text> ✨</Text>
           </View>
           <View style={styles.headerRight}>
             {/* STREAK FREEZE TRIGGER (Premium Snowflake) */}
@@ -109,9 +111,9 @@ export default function HomeScreen() {
                     <MaterialCommunityIcons name="fire" size={24} color={selectedMood.accent} />
                   </View>
                   <View style={styles.statTextColumn}>
-                    <Text style={styles.statLabel}>SÉRIE</Text>
-                    <Text style={styles.statValue}>12 Jours</Text>
-                    <Text style={styles.statSub}>+1 aujourd'hui</Text>
+                    <Text numberOfLines={1} style={styles.statLabel}>SÉRIE</Text>
+                    <Text numberOfLines={1} style={styles.statValue}>12 Jours</Text>
+                    <Text numberOfLines={1} style={styles.statSub}>+1 aujourd'hui</Text>
                   </View>
                 </View>
 
@@ -123,9 +125,9 @@ export default function HomeScreen() {
                     <Feather name="cloud-drizzle" size={22} color="#0284C7" />
                   </View>
                   <View style={styles.statTextColumn}>
-                    <Text style={styles.statLabel}>MÉTÉO</Text>
-                    <Text style={styles.statValue}>18°C</Text>
-                    <Text style={styles.statSub}>Pluie légère</Text>
+                    <Text numberOfLines={1} style={styles.statLabel}>MÉTÉO</Text>
+                    <Text numberOfLines={1} style={styles.statValue}>18°C</Text>
+                    <Text numberOfLines={1} style={styles.statSub}>Pluie légère</Text>
                   </View>
                 </View>
 
@@ -197,8 +199,8 @@ export default function HomeScreen() {
                   style={styles.albumArt} 
                 />
                 <View style={styles.playerMeta}>
-                  <Text style={styles.playerTitle}>Symphonie Printanière</Text>
-                  <Text style={styles.playerArtist}>Lofi Relaxation Collective</Text>
+                  <Text numberOfLines={1} style={styles.playerTitle}>Symphonie Printanière</Text>
+                  <Text numberOfLines={1} style={styles.playerArtist}>Lofi Relaxation Collective</Text>
                   <View style={styles.playerProgressBg}>
                     <View style={[styles.playerProgressFill, { width: '45%', backgroundColor: selectedMood.accent }]} />
                   </View>
@@ -390,16 +392,17 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 8,
   },
   statIconFrame: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
+    width: 38,
+    height: 38,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   statTextColumn: {
+    flex: 1,
     justifyContent: 'center',
   },
   statLabel: {
