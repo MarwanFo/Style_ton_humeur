@@ -17,6 +17,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNotifications } from '@/hooks/useNotifications';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +37,7 @@ export default function HomeScreen() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [freezeActive, setFreezeActive] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const { registerForPushNotificationsAsync, scheduleDailyStreakReminder } = useNotifications();
 
   const handleStartQuiz = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -60,6 +62,9 @@ export default function HomeScreen() {
         if (userData) {
           setUserProfile(JSON.parse(userData));
         }
+        // Init notifications for authenticated users
+        await registerForPushNotificationsAsync();
+        await scheduleDailyStreakReminder();
       }
     };
     checkAuth();

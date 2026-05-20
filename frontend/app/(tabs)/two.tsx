@@ -7,7 +7,8 @@ import {
   Image, 
   Alert, 
   ScrollView,
-  ActivityIndicator
+  ActivityIndicator,
+  Switch
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -16,6 +17,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '@/constants/Api';
+import { useNotifications } from '@/hooks/useNotifications';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -23,6 +25,7 @@ export default function ProfileScreen() {
   const [user, setUser] = useState<any>(null);
   const [streak, setStreak] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { notificationsEnabled, toggleNotifications } = useNotifications();
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -213,6 +216,22 @@ export default function ProfileScreen() {
         <View style={styles.actionGroupShadow}>
           <View style={styles.actionGroup}>
             
+            {/* Notifications Toggle */}
+            <View style={styles.actionItem}>
+              <View style={[styles.actionIconFrame, { backgroundColor: 'rgba(127, 0, 255, 0.1)' }]}>
+                <Feather name="bell" size={18} color="#7F00FF" />
+              </View>
+              <Text style={styles.actionText}>Notifications & Rappels</Text>
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={toggleNotifications}
+                trackColor={{ false: '#E5E5EA', true: '#7F00FF' }}
+                thumbColor="#FFFFFF"
+              />
+            </View>
+
+            <View style={styles.actionDivider} />
+
             {/* Decconnexion */}
             <Pressable style={styles.actionItem} onPress={handleLogout}>
               <View style={[styles.actionIconFrame, { backgroundColor: 'rgba(255, 142, 83, 0.1)' }]}>
