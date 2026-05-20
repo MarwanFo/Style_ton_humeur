@@ -115,6 +115,82 @@ export class CheckinsService {
     });
   }
 
+  async createVisualCheckIn(
+    userId: number,
+    data: { base64Image: string; mimeType: string },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('Utilisateur non trouvé');
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
+
+    const existingCheckin = await this.prisma.dailyCheckIn.findFirst({
+      where: { userId, checkinDate: today },
+    });
+    if (existingCheckin) {
+      throw new ConflictException("Vous avez déjà effectué votre check-in aujourd'hui.");
+    }
+
+    const aiResult = await this.aiService.analyzeImage(
+      data.base64Image,
+      data.mimeType,
+      { gender: user.gender, age: user.age }
+    );
+
+    const moodDetected = aiResult.detected_mood || 'confiant';
+    const moodSelected = moodDetected;
+
+    return this.prisma.$transaction(async (tx) => {
+      const checkin = await tx.dailyCheckIn.create({
+        data: {
+          userId,
+          checkinDate: today,
+          moodDetected,
+          moodSelected,
+          answers: { source: 'camera_scan' },
+        },
+      });
+
+      const recommendation = await tx.recommendation.create({
+        data: {
+          userId,
+          checkinId: checkin.id,
+          recommendationDate: today,
+          outfits: aiResult.outfits,
+          makeup: aiResult.makeup,
+          music: aiResult.music,
+        },
+      });
+
+      let streak = await tx.streak.findUnique({ where: { userId } });
+      if (!streak) {
+        streak = await tx.streak.create({ data: { userId, currentStreak: 0, maxStreak: 0 } });
+      }
+
+      const updatedStreakState = this.calculateNewStreakState(today, {
+        currentStreak: streak.currentStreak,
+        maxStreak: streak.maxStreak,
+        lastCheckinDate: streak.lastCheckinDate,
+        weeklyFreezeUsedDate: streak.weeklyFreezeUsedDate,
+      });
+
+      await tx.streak.update({
+        where: { userId },
+        data: {
+          currentStreak: updatedStreakState.currentStreak,
+          maxStreak: updatedStreakState.maxStreak,
+          lastCheckinDate: updatedStreakState.lastCheckinDate,
+          weeklyFreezeUsedDate: updatedStreakState.weeklyFreezeUsedDate,
+        },
+      });
+
+      const awardedBadges = await this.checkAndAwardBadges(tx, userId, updatedStreakState.currentStreak);
+
+      return { checkin, recommendation, streak: updatedStreakState, awardedBadges };
+    });
+  }
+
   private calculateNewStreakState(
     checkInDate: Date,
     state: {

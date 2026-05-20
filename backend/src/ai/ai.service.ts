@@ -50,6 +50,49 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'a
     }
   }
 
+  async analyzeImage(
+    base64Image: string,
+    mimeType: string,
+    userProfile: { gender: string; age: number },
+  ): Promise<any> {
+    try {
+      const model = this.ai.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: { responseMimeType: 'application/json' },
+      });
+
+      const prompt = `
+Tu es un styliste visuel expert. L'utilisateur est un(e) ${userProfile.gender} de ${userProfile.age} ans.
+Analyse la photo fournie pour comprendre son style, sa morphologie, sa colorimétrie (peau/cheveux) et son aura actuelle.
+Déduis l'humeur qui s'en dégage et donne-moi des recommandations parfaites.
+
+Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'autre autour) :
+{
+  "detected_mood": "calme|confiant|joyeux|stressé|mélancolique|énergique",
+  "style_keywords": ["mot1", "mot2"],
+  "justification": "courte phrase justifiant pourquoi ces choix par rapport à l'image",
+  "outfits": [{"title":"nom","top":"haut","bottom":"bas","shoes":"chaussures","accessories":"acc"}], // exactement 3
+  "makeup": [{"type":"léger|intense","description":"desc"}], // exactement 2
+  "music": [{"title":"titre","artist":"artiste","genre":"genre","tempo":"lent|modéré|rapide"}] // 1 à 3
+}`;
+
+      const result = await model.generateContent([
+        prompt,
+        {
+          inlineData: {
+            data: base64Image,
+            mimeType: mimeType,
+          },
+        },
+      ]);
+      const text = result.response.text();
+      return JSON.parse(text);
+    } catch (error) {
+      this.logger.error('Erreur lors de l\\'analyse visuelle avec Gemini', error);
+      return this.getFallbackRecommendation();
+    }
+  }
+
   private getFallbackRecommendation() {
     return {
       detected_mood: "calme",
