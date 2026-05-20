@@ -88,7 +88,7 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'a
       const text = result.response.text();
       return JSON.parse(text);
     } catch (error) {
-      this.logger.error('Erreur lors de l\\'analyse visuelle avec Gemini', error);
+      this.logger.error("Erreur lors de l'analyse visuelle avec Gemini", error);
       return this.getFallbackRecommendation();
     }
   }
