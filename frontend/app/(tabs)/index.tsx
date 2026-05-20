@@ -18,6 +18,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '@/hooks/useNotifications';
+import { API_URL } from '@/constants/Api';
+import * as ImagePicker from 'expo-image-picker';
+import { Alert, ActivityIndicator, Modal } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +41,103 @@ export default function HomeScreen() {
   const [freezeActive, setFreezeActive] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
   const { registerForPushNotificationsAsync, scheduleDailyStreakReminder } = useNotifications();
+  const [isScanning, setIsScanning] = useState(false);
+
+  const handleScanStyle = async () => {
+    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+    const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!cameraPermission.granted || !libraryPermission.granted) {
+      Alert.alert(
+        "Permissions requises",
+        "Nous avons besoin de l'accès à votre caméra et galerie de photos pour scanner votre style."
+      );
+      return;
+    }
+
+    Alert.alert(
+      "Scanner mon Style 📷",
+      "Choisissez une photo pour que notre IA Gemini analyse votre look, morphologie et colorimétrie.",
+      [
+        {
+          text: "Prendre une photo",
+          onPress: () => launchPicker(true),
+        },
+        {
+          text: "Galerie de photos",
+          onPress: () => launchPicker(false),
+        },
+        {
+          text: "Annuler",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  const launchPicker = async (isCamera: boolean) => {
+    try {
+      const options: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      };
+
+      const result = isCamera
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
+
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert("Erreur", "Impossible de traiter l'image sélectionnée.");
+        return;
+      }
+
+      setIsScanning(true);
+
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        setIsScanning(false);
+        router.push('/auth');
+        return;
+      }
+
+      const mimeType = asset.mimeType || 'image/jpeg';
+
+      const response = await fetch(`${API_URL}/checkins/scan-style`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          base64Image: asset.base64,
+          mimeType: mimeType,
+        }),
+      });
+
+      const resData = await response.json();
+      setIsScanning(false);
+
+      if (!response.ok) {
+        Alert.alert("Erreur d'analyse", resData.message || "Impossible d'analyser votre style.");
+        return;
+      }
+
+      await AsyncStorage.setItem('latestRecommendation', JSON.stringify(resData.recommendation));
+      await AsyncStorage.setItem('latestCheckin', JSON.stringify(resData.checkin));
+      
+      router.replace('/recommendations');
+
+    } catch (err) {
+      setIsScanning(false);
+      Alert.alert("Erreur", "Une erreur inattendue est survenue lors de l'analyse.");
+    }
+  };
 
   const handleStartQuiz = async () => {
     const token = await AsyncStorage.getItem('token');
@@ -219,6 +319,29 @@ export default function HomeScreen() {
           </LinearGradient>
         </Animated.View>
 
+        {/* PREMIUM SCAN MY STYLE CTA CARD */}
+        <Animated.View entering={FadeInDown.delay(450).duration(800).springify()} style={styles.generatorShadow}>
+          <LinearGradient
+            colors={['#111827', '#1E293B']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.generatorGradient, { borderWidth: 1, borderColor: '#00C6FF30' }]}
+          >
+            <Pressable style={styles.generatorAction} onPress={handleScanStyle}>
+              <View style={styles.generatorLeft}>
+                <View style={[styles.crystalBadge, { backgroundColor: '#00C6FF25' }]}>
+                  <Text style={[styles.crystalText, { color: '#00C6FF' }]}>MULTIMODAL IA</Text>
+                </View>
+                <Text style={styles.generatorTitle}>Scanner mon Style 📷</Text>
+                <Text style={styles.generatorSub}>Prendre un selfie pour analyser votre colorimétrie & look</Text>
+              </View>
+              <View style={[styles.sparkleOrb, { backgroundColor: '#00C6FF15', borderWidth: 1, borderColor: '#00C6FF' }]}>
+                <Ionicons name="camera" size={24} color="#00C6FF" />
+              </View>
+            </Pressable>
+          </LinearGradient>
+        </Animated.View>
+
         {/* GLASS MUSIC PLAYER (Ultimate Luxury Detail) */}
         <Animated.View entering={FadeInDown.delay(500).duration(800).springify()} style={styles.playerShadow}>
           <View style={styles.playerGlassWrapper}>
@@ -292,6 +415,17 @@ export default function HomeScreen() {
         </Animated.View>
 
       </ScrollView>
+
+      {/* AI Visual Scan Loading Overlay */}
+      <Modal visible={isScanning} transparent animationType="fade">
+        <View style={styles.loaderOverlay}>
+          <BlurView intensity={90} tint="dark" style={styles.loaderGlass}>
+            <ActivityIndicator size="large" color="#00C6FF" />
+            <Text style={styles.loaderTitle}>Analyse Visuelle Gemini...</Text>
+            <Text style={styles.loaderSub}>L'intelligence artificielle analyse votre look, votre morphologie et colorimétrie pour générer votre tenue et playlist idéales.</Text>
+          </BlurView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -739,5 +873,37 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
+  },
+  loaderOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loaderGlass: {
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    width: '100%',
+    maxWidth: 340,
+    backgroundColor: 'rgba(26, 27, 47, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  loaderTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    marginTop: 20,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  loaderSub: {
+    fontSize: 12,
+    color: '#A0A0B0',
+    textAlign: 'center',
+    lineHeight: 18,
+    fontWeight: '500',
   },
 });
