@@ -15,6 +15,8 @@ import Animated, {
   FadeIn
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
@@ -29,9 +31,11 @@ const MOODS = [
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [selectedMood, setSelectedMood] = useState(MOODS[1]); // Calme by default
   const [isPlaying, setIsPlaying] = useState(false);
   const [freezeActive, setFreezeActive] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
   // Background floating orbs positions
   const floatAnim1 = useSharedValue(0);
@@ -39,6 +43,21 @@ export default function HomeScreen() {
   const floatAnim3 = useSharedValue(0);
 
   useEffect(() => {
+    // Redirection check if not authenticated
+    const checkAuth = async () => {
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        router.replace('/auth');
+        return;
+      }
+      
+      const userData = await AsyncStorage.getItem('user');
+      if (userData) {
+        setUserProfile(JSON.parse(userData));
+      }
+    };
+    checkAuth();
+
     floatAnim1.value = withRepeat(withSequence(withTiming(-15, { duration: 3000 }), withTiming(0, { duration: 3000 })), -1, true);
     floatAnim2.value = withRepeat(withSequence(withTiming(20, { duration: 4000 }), withTiming(0, { duration: 4000 })), -1, true);
     floatAnim3.value = withRepeat(withSequence(withTiming(-10, { duration: 2500 }), withTiming(0, { duration: 2500 })), -1, true);
@@ -69,7 +88,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.duration(800).springify()} style={styles.header}>
           <View style={{ flex: 1, marginRight: 8 }}>
             <Text numberOfLines={1} style={styles.brandTitle}>S T Y L E   T O N   H U M E U R</Text>
-            <Text numberOfLines={1} style={styles.greeting}>Bonjour, <Text style={[styles.userName, { color: selectedMood.accent }]}>Chaymae</Text> ✨</Text>
+            <Text numberOfLines={1} style={styles.greeting}>Bonjour, <Text style={[styles.userName, { color: selectedMood.accent }]}>{userProfile?.displayName || 'Chaymae'}</Text> ✨</Text>
           </View>
           <View style={styles.headerRight}>
             {/* STREAK FREEZE TRIGGER (Premium Snowflake) */}
@@ -174,7 +193,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.generatorGradient}
           >
-            <Pressable style={styles.generatorAction}>
+            <Pressable style={styles.generatorAction} onPress={() => router.push('/questionnaire')}>
               <View style={styles.generatorLeft}>
                 <View style={styles.crystalBadge}>
                   <Text style={styles.crystalText}>GEMINI POWERED</Text>
