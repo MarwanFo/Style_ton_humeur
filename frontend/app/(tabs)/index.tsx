@@ -49,7 +49,7 @@ export default function HomeScreen() {
     <View style={styles.container}>
       {/* 1. DYNAMIC COLOR BACKGROUND based on selected mood */}
       <LinearGradient
-        colors={selectedMood.colors}
+        colors={selectedMood.colors as [string, string, ...string[]]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFillObject}
@@ -78,7 +78,7 @@ export default function HomeScreen() {
                 freezeActive && { backgroundColor: '#E0F7FA', borderColor: '#00BCD4' }
               ]}
             >
-              <Feather name="snowflake" size={18} color={freezeActive ? '#00BCD4' : '#8A8A9E'} />
+              <FontAwesome5 name="snowflake" size={18} color={freezeActive ? '#00BCD4' : '#8A8A9E'} />
               <View style={[styles.freezeIndicator, { backgroundColor: freezeActive ? '#00BCD4' : '#C4C4C4' }]} />
             </Pressable>
             <View style={[styles.avatarBorder, { borderColor: selectedMood.accent }]}>
@@ -119,7 +119,7 @@ export default function HomeScreen() {
 
                 {/* Right Panel: Weather */}
                 <View style={styles.statBox}>
-                  <View style={styles.statIconFrame, { backgroundColor: '#E0F2FE' }}>
+                  <View style={[styles.statIconFrame, { backgroundColor: '#E0F2FE' }]}>
                     <Feather name="cloud-drizzle" size={22} color="#0284C7" />
                   </View>
                   <View style={styles.statTextColumn}>
