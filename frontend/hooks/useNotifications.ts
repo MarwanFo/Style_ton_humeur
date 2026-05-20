@@ -19,6 +19,7 @@ export function useNotifications() {
   }, []);
 
   const toggleNotifications = async (value: boolean) => {
+    if (Platform.OS === 'web') return;
     setNotificationsEnabled(value);
     await AsyncStorage.setItem('notifications_enabled', JSON.stringify(value));
     
@@ -33,6 +34,7 @@ export function useNotifications() {
   };
 
   const registerForPushNotificationsAsync = async () => {
+    if (Platform.OS === 'web') return;
     if (Platform.OS === 'android') {
       await Notifications.setNotificationChannelAsync('default', {
         name: 'default',
@@ -55,13 +57,13 @@ export function useNotifications() {
       return;
     }
 
-    const token = (await Notifications.getExpoPushTokenAsync()).data;
-    setExpoPushToken(token);
-    return token;
+    setExpoPushToken('local_only');
+    return 'local_only';
   };
 
   // Schedule a daily reminder at 20:00 (8:00 PM) to check-in and save the streak
   const scheduleDailyStreakReminder = async () => {
+    if (Platform.OS === 'web') return;
     if (!notificationsEnabled) return;
 
     // First cancel previous ones to avoid duplicates
@@ -84,6 +86,7 @@ export function useNotifications() {
 
   // Trigger an immediate notification when user gets a badge
   const sendBadgeUnlockNotification = async (badgeName: string) => {
+    if (Platform.OS === 'web') return;
     if (!notificationsEnabled) return;
 
     await Notifications.scheduleNotificationAsync({
