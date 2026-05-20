@@ -37,23 +37,29 @@ export default function HomeScreen() {
   const [freezeActive, setFreezeActive] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
 
+  const handleStartQuiz = async () => {
+    const token = await AsyncStorage.getItem('token');
+    if (!token) {
+      router.push('/auth');
+    } else {
+      router.push('/questionnaire');
+    }
+  };
+
   // Background floating orbs positions
   const floatAnim1 = useSharedValue(0);
   const floatAnim2 = useSharedValue(0);
   const floatAnim3 = useSharedValue(0);
 
   useEffect(() => {
-    // Redirection check if not authenticated
+    // Check if token exists to load profile, but do not force redirect
     const checkAuth = async () => {
       const token = await AsyncStorage.getItem('token');
-      if (!token) {
-        router.replace('/auth');
-        return;
-      }
-      
-      const userData = await AsyncStorage.getItem('user');
-      if (userData) {
-        setUserProfile(JSON.parse(userData));
+      if (token) {
+        const userData = await AsyncStorage.getItem('user');
+        if (userData) {
+          setUserProfile(JSON.parse(userData));
+        }
       }
     };
     checkAuth();
@@ -193,7 +199,7 @@ export default function HomeScreen() {
             end={{ x: 1, y: 1 }}
             style={styles.generatorGradient}
           >
-            <Pressable style={styles.generatorAction} onPress={() => router.push('/questionnaire')}>
+            <Pressable style={styles.generatorAction} onPress={handleStartQuiz}>
               <View style={styles.generatorLeft}>
                 <View style={styles.crystalBadge}>
                   <Text style={styles.crystalText}>GEMINI POWERED</Text>
