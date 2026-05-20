@@ -22,6 +22,15 @@ export class CheckinsController {
     return this.checkinsService.createCheckIn(userId, body);
   }
 
+  @Post('scan-style')
+  async createVisualCheckIn(
+    @Request() req,
+    @Body() body: { base64Image: string, mimeType: string }
+  ) {
+    const userId = req.user.userId;
+    return this.checkinsService.createVisualCheckIn(userId, body);
+  }
+
   @Get('streak')
   async getStreak(@Request() req) {
     const userId = req.user.userId;
