@@ -25,7 +25,7 @@ export class CheckinsController {
   @Post('scan-style')
   async createVisualCheckIn(
     @Request() req,
-    @Body() body: { base64Image: string, mimeType: string }
+    @Body() body: { base64Image: string, mimeType: string, height?: number, origin?: string }
   ) {
     const userId = req.user.userId;
     return this.checkinsService.createVisualCheckIn(userId, body);

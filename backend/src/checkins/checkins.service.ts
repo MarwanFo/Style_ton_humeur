@@ -119,28 +119,57 @@ export class CheckinsService {
 
   async createVisualCheckIn(
     userId: number,
-    data: { base64Image: string; mimeType: string },
+    data: { base64Image: string; mimeType: string; height?: number; origin?: string },
   ) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new NotFoundException('Utilisateur non trouvé');
 
+    const updatedHeight = data.height ?? user.height;
+    const updatedOrigin = data.origin ?? user.origin;
+
+    // Sauvegarder la taille et l'origine si fournies
+    if (data.height || data.origin) {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          height: updatedHeight,
+          origin: updatedOrigin,
+        },
+      });
+    }
+
     const todayStr = new Date().toISOString().split('T')[0];
     const today = new Date(todayStr);
 
-    const existingCheckin = await this.prisma.dailyCheckIn.findFirst({
-      where: { userId, checkinDate: today },
-    });
-    if (existingCheckin) {
-      // Pour les tests : on supprime l'ancien check-in d'aujourd'hui pour pouvoir recommencer
-      await this.prisma.recommendation.deleteMany({ where: { checkinId: existingCheckin.id } });
-      await this.prisma.dailyCheckIn.delete({ where: { id: existingCheckin.id } });
-    }
+    // Note : On ne supprime l'ancien check-in que SI l'image est valide et qu'on va créer un nouveau check-in !
 
     const aiResult = await this.aiService.analyzeImage(
       data.base64Image,
       data.mimeType,
-      { gender: user.gender, age: user.age }
+      { 
+        gender: user.gender, 
+        age: user.age,
+        height: updatedHeight || undefined,
+        origin: updatedOrigin || undefined,
+      }
     );
+
+    // Si la photo n'est pas valide (pas corps entier)
+    if (aiResult.is_full_body_valid === false) {
+      return {
+        isFullBodyValid: false,
+        errorAlert: aiResult.error_alert || "Veuillez fournir une photo de vous de la tête aux pieds (corps entier).",
+      };
+    }
+
+    // Si valide, on procède à l'enregistrement (et écrasement de l'ancien check-in du jour s'il existe)
+    const existingCheckin = await this.prisma.dailyCheckIn.findFirst({
+      where: { userId, checkinDate: today },
+    });
+    if (existingCheckin) {
+      await this.prisma.recommendation.deleteMany({ where: { checkinId: existingCheckin.id } });
+      await this.prisma.dailyCheckIn.delete({ where: { id: existingCheckin.id } });
+    }
 
     const moodDetected = aiResult.detected_mood || 'confiant';
     const moodSelected = moodDetected;
@@ -152,7 +181,11 @@ export class CheckinsService {
           checkinDate: today,
           moodDetected,
           moodSelected,
-          answers: { source: 'camera_scan' },
+          answers: { 
+            source: 'camera_scan',
+            height: updatedHeight,
+            origin: updatedOrigin
+          },
         },
       });
 
@@ -191,7 +224,13 @@ export class CheckinsService {
 
       const awardedBadges = await this.checkAndAwardBadges(tx, userId, updatedStreakState.currentStreak);
 
-      return { checkin, recommendation, streak: updatedStreakState, awardedBadges };
+      return { 
+        isFullBodyValid: true,
+        checkin, 
+        recommendation, 
+        streak: updatedStreakState, 
+        awardedBadges 
+      };
     });
   }
 

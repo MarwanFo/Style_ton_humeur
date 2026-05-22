@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Dimensions, Pressable, ScrollView, Image } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, Pressable, ScrollView, Image, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons, Feather, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
@@ -47,6 +47,11 @@ export default function HomeScreen() {
   const [weather, setWeather] = useState({ temp: '--', description: 'Chargement...', icon: 'cloud' });
   const [badges, setBadges] = useState<any>({ total: 8, unlocked: 0, progressText: '0 / 8 validés', latest: null });
 
+  // Form states for custom AI style scan
+  const [heightVal, setHeightVal] = useState('');
+  const [originVal, setOriginVal] = useState('');
+  const [isFormModalVisible, setIsFormModalVisible] = useState(false);
+
   const handleScanStyle = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
     const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -59,9 +64,21 @@ export default function HomeScreen() {
       return;
     }
 
+    // Load existing profile values if available
+    if (userProfile) {
+      if (userProfile.height && !heightVal) setHeightVal(String(userProfile.height));
+      if (userProfile.origin && !originVal) setOriginVal(userProfile.origin);
+    }
+
+    setIsFormModalVisible(true);
+  };
+
+  const handleProceedToScan = () => {
+    setIsFormModalVisible(false);
+
     Alert.alert(
       "Scanner mon Style 📷",
-      "Choisissez une photo pour que notre IA Gemini analyse votre look, morphologie et colorimétrie.",
+      "Choisissez une photo pour que notre IA analyse votre look, morphologie et colorimétrie.",
       [
         {
           text: "Prendre une photo",
@@ -84,7 +101,7 @@ export default function HomeScreen() {
       const options: ImagePicker.ImagePickerOptions = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
-        aspect: [1, 1],
+        aspect: [3, 4], // 3:4 aspect ratio is better for full body pictures
         quality: 0.5,
         base64: true,
       };
@@ -121,6 +138,8 @@ export default function HomeScreen() {
         body: JSON.stringify({
           base64Image: asset.base64,
           mimeType: mimeType,
+          height: heightVal ? parseInt(heightVal, 10) : undefined,
+          origin: originVal || undefined,
         }),
       });
 
@@ -132,10 +151,16 @@ export default function HomeScreen() {
         return;
       }
 
+      // Check full body validation from Llama Vision
+      if (resData.isFullBodyValid === false) {
+        Alert.alert("Photo non valide 📷", resData.errorAlert);
+        return;
+      }
+
       await AsyncStorage.setItem('latestRecommendation', JSON.stringify(resData.recommendation));
       await AsyncStorage.setItem('latestCheckin', JSON.stringify(resData.checkin));
       
-      router.replace('/recommendations');
+      router.replace('/style-analysis');
 
     } catch (err) {
       setIsScanning(false);
@@ -477,8 +502,64 @@ export default function HomeScreen() {
         <View style={styles.loaderOverlay}>
           <BlurView intensity={90} tint="dark" style={styles.loaderGlass}>
             <ActivityIndicator size="large" color="#00C6FF" />
-            <Text style={styles.loaderTitle}>Analyse Visuelle Gemini...</Text>
+            <Text style={styles.loaderTitle}>Analyse Visuelle IA...</Text>
             <Text style={styles.loaderSub}>L'intelligence artificielle analyse votre look, votre morphologie et colorimétrie pour générer votre tenue et playlist idéales.</Text>
+          </BlurView>
+        </View>
+      </Modal>
+
+      {/* Form Modal for Height and Origin */}
+      <Modal visible={isFormModalVisible} transparent animationType="slide">
+        <View style={styles.formModalOverlay}>
+          <BlurView intensity={95} tint="light" style={styles.formModalGlass}>
+            <View style={styles.formModalHeader}>
+              <Ionicons name="sparkles" size={24} color="#7F00FF" />
+              <Text style={styles.formModalTitle}>Analyse de Style IA</Text>
+              <Text style={styles.formModalSubtitle}>Indiquez vos détails pour une analyse ultra-personnalisée par notre modèle de vision Llama</Text>
+            </View>
+
+            <View style={styles.formInputs}>
+              <Text style={styles.inputLabel}>Votre taille (en cm)</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ex: 175"
+                placeholderTextColor="#8A8A9E"
+                keyboardType="numeric"
+                value={heightVal}
+                onChangeText={setHeightVal}
+              />
+
+              <Text style={styles.inputLabel}>Où êtes-vous ? / Votre origine</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="Ex: France, Maroc, Japon..."
+                placeholderTextColor="#8A8A9E"
+                value={originVal}
+                onChangeText={setOriginVal}
+              />
+            </View>
+
+            <View style={styles.formActions}>
+              <Pressable 
+                style={[styles.formBtn, styles.formBtnCancel]} 
+                onPress={() => setIsFormModalVisible(false)}
+              >
+                <Text style={styles.formBtnCancelText}>Annuler</Text>
+              </Pressable>
+
+              <Pressable 
+                style={[styles.formBtn, styles.formBtnSubmit]} 
+                onPress={handleProceedToScan}
+              >
+                <LinearGradient
+                  colors={['#7F00FF', '#E100FF']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <Text style={styles.formBtnSubmitText}>Continuer</Text>
+              </Pressable>
+            </View>
           </BlurView>
         </View>
       </Modal>
@@ -961,5 +1042,94 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
     fontWeight: '500',
+  },
+  formModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  formModalGlass: {
+    borderRadius: 28,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
+  },
+  formModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  formModalTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1E1E2C',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  formModalSubtitle: {
+    fontSize: 12,
+    color: '#8A8A9E',
+    textAlign: 'center',
+    lineHeight: 16,
+    fontWeight: '500',
+  },
+  formInputs: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3C3C4E',
+    marginBottom: 4,
+  },
+  textInput: {
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.05)',
+    paddingHorizontal: 16,
+    fontSize: 14,
+    color: '#1E1E2C',
+    fontWeight: '600',
+  },
+  formActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  formBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  formBtnCancel: {
+    backgroundColor: 'rgba(0,0,0,0.04)',
+  },
+  formBtnCancelText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#8A8A9E',
+  },
+  formBtnSubmit: {
+    position: 'relative',
+  },
+  formBtnSubmitText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+    zIndex: 1,
   },
 });

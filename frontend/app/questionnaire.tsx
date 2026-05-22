@@ -135,7 +135,7 @@ export default function QuestionnaireScreen() {
       await AsyncStorage.setItem('latestCheckin', JSON.stringify(data.checkin));
       
       // Go to recommendations screen
-      router.replace('/recommendations');
+      router.replace('/style-analysis');
     } catch (err: any) {
       Alert.alert('Échec de génération', err.message || 'Une erreur est survenue.');
     } finally {

@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const { width } = Dimensions.get('window');
 
-export default function RecommendationsScreen() {
+export default function StyleAnalysisScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   
@@ -40,7 +40,7 @@ export default function RecommendationsScreen() {
         if (recoStr) setRecommendation(JSON.parse(recoStr));
         if (checkinStr) setCheckin(JSON.parse(checkinStr));
       } catch (err) {
-        Alert.alert('Erreur', 'Impossible de charger vos recommandations.');
+        Alert.alert('Erreur', 'Impossible de charger votre analyse de style.');
       } finally {
         setLoading(false);
       }
@@ -63,16 +63,6 @@ export default function RecommendationsScreen() {
     { title: 'Evening Vibe', pieces: ['Robe en soie noire', 'Veste en cuir fine', 'Escarpins en velours', 'Pochette dorée'], justification: 'Idéal pour votre sortie chic en fin de journée.' }
   ];
 
-  const makeup = recommendation?.makeup || [
-    { title: 'Routine Légère (Journée)', steps: ['Hydratation intense', 'Anti-cernes léger', 'Gel à sourcils transparent', 'Baume à lèvres teinté rosé'] },
-    { title: 'Routine Intense (Soirée)', steps: ['Fard à paupières cuivré chaud', 'Eyeliner noir précis', 'Mascara volumateur', 'Rouge à lèvres nude mat'] }
-  ];
-
-  const tracks = recommendation?.music || [
-    { title: 'Petals & Whispers', artist: 'Nordic Chillout Lounge' },
-    { title: 'Sunset Boulevard', artist: 'Lofi Jazz Generation' }
-  ];
-
   const activeOutfit = outfits[activeOutfitIndex];
 
   return (
@@ -86,9 +76,9 @@ export default function RecommendationsScreen() {
         
         {/* HEADER SECTION */}
         <Animated.View entering={FadeInUp.duration(600).springify()} style={styles.header}>
-          <View>
-            <Text style={styles.headerSubtitle}>VOTRE RECOMMANDATION IA</Text>
-            <Text style={styles.headerTitle}>Mood : <Text style={styles.moodHighlight}>{checkin?.moodDetected || 'Serein'} ✨</Text></Text>
+          <View style={{ flex: 1, marginRight: 8 }}>
+            <Text style={styles.headerSubtitle}>VOTRE RAPPORT DE STYLE IA</Text>
+            <Text numberOfLines={1} style={styles.headerTitle}>Style : <Text style={styles.moodHighlight}>{recommendation?.style_keywords?.join(', ') || 'Personnalisé'} ✨</Text></Text>
           </View>
           <Pressable style={styles.closeBtn} onPress={() => router.replace('/(tabs)')}>
             <Ionicons name="close" size={24} color="#1E1E2C" />
@@ -99,7 +89,7 @@ export default function RecommendationsScreen() {
         <Animated.View entering={FadeInDown.delay(100).duration(800).springify()} style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Suggestions de Tenues</Text>
-            <Text style={styles.badgeText}>3 CHOIX</Text>
+            <Text style={styles.badgeText}>3 LOOKS</Text>
           </View>
 
           {/* Tab Selector for outfits */}
@@ -140,65 +130,14 @@ export default function RecommendationsScreen() {
 
               <View style={styles.justificationBox}>
                 <Text style={styles.justificationLabel}>POURQUOI CE LOOK ?</Text>
-                <Text style={styles.justificationText}>{activeOutfit?.justification || 'Adapté à vos besoins du jour.'}</Text>
-              </View>
-            </BlurView>
-          </View>
-        </Animated.View>
-
-        {/* 2. MAKEUP SECTION */}
-        <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Routines Maquillage</Text>
-          <View style={styles.makeupRow}>
-            {makeup.map((item: any, idx: number) => (
-              <View key={idx} style={styles.makeupCardShadow}>
-                <BlurView intensity={50} tint="light" style={styles.makeupCard}>
-                  <Text style={styles.makeupType}>{idx === 0 ? 'JOUR' : 'SOIR'}</Text>
-                  <Text style={styles.makeupTitle}>{item.title}</Text>
-                  <View style={styles.makeupSteps}>
-                    {item.steps?.map((step: string, sIdx: number) => (
-                      <Text key={sIdx} numberOfLines={1} style={styles.makeupStepText}>
-                        • {step}
-                      </Text>
-                    ))}
-                  </View>
-                </BlurView>
-              </View>
-            ))}
-          </View>
-        </Animated.View>
-
-        {/* 3. MUSIC PLAYLIST (Spotify-style) */}
-        <Animated.View entering={FadeInDown.delay(300).duration(800).springify()} style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Vibe Musicale</Text>
-          <View style={styles.playlistBox}>
-            <BlurView intensity={65} tint="light" style={styles.playlistCard}>
-              <View style={styles.playlistHeader}>
-                <MaterialCommunityIcons name="playlist-music" size={24} color="#1DB954" />
-                <Text style={styles.playlistTitle}>Playlist Recommandée</Text>
-              </View>
-              <View style={styles.trackList}>
-                {tracks.map((track: any, idx: number) => (
-                  <View key={idx} style={styles.trackRow}>
-                    <View style={styles.trackIndexBox}>
-                      <Text style={styles.trackIndexText}>{idx + 1}</Text>
-                    </View>
-                    <View style={styles.trackMeta}>
-                      <Text style={styles.trackName}>{track.title}</Text>
-                      <Text style={styles.trackArtist}>{track.artist}</Text>
-                    </View>
-                    <Pressable style={styles.trackPlayBtn}>
-                      <Ionicons name="play" size={16} color="#FFF" />
-                    </Pressable>
-                  </View>
-                ))}
+                <Text style={styles.justificationText}>{activeOutfit?.justification || 'Adapté à vos proportions et origine.'}</Text>
               </View>
             </BlurView>
           </View>
         </Animated.View>
 
         {/* 4. ACTIONS & FEEDBACK WIDGET */}
-        <Animated.View entering={FadeInDown.delay(400).duration(800).springify()} style={styles.feedbackSection}>
+        <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.feedbackSection}>
           
           {/* Favorite button */}
           <Pressable 
@@ -235,7 +174,7 @@ export default function RecommendationsScreen() {
         </Animated.View>
 
         {/* FINAL REDIRECTION ACTION */}
-        <Animated.View entering={FadeInDown.delay(500).duration(800).springify()}>
+        <Animated.View entering={FadeInDown.delay(300).duration(800).springify()}>
           <Pressable style={styles.doneBtn} onPress={() => router.replace('/(tabs)')}>
             <LinearGradient
               colors={['#7F00FF', '#E100FF']}
