@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNotifications } from '@/hooks/useNotifications';
 import { API_URL } from '@/constants/Api';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { Alert, ActivityIndicator, Modal } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -42,6 +43,9 @@ export default function HomeScreen() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const { registerForPushNotificationsAsync, scheduleDailyStreakReminder } = useNotifications();
   const [isScanning, setIsScanning] = useState(false);
+  const [streak, setStreak] = useState(0);
+  const [weather, setWeather] = useState({ temp: '--', description: 'Chargement...', icon: 'cloud' });
+  const [badges, setBadges] = useState<any>({ total: 8, unlocked: 0, progressText: '0 / 8 validés', latest: null });
 
   const handleScanStyle = async () => {
     const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
@@ -162,12 +166,64 @@ export default function HomeScreen() {
         if (userData) {
           setUserProfile(JSON.parse(userData));
         }
+
+        // Fetch real streak
+        try {
+          const streakRes = await fetch(`${API_URL}/checkins/streak`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (streakRes.ok) {
+            const streakData = await streakRes.json();
+            setStreak(streakData.currentStreak || 0);
+          }
+          
+          // Fetch real badges
+          const badgesRes = await fetch(`${API_URL}/checkins/badges`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (badgesRes.ok) {
+            const badgesData = await badgesRes.json();
+            const unlocked = badgesData.filter((b: any) => b.progress >= 100).length;
+            setBadges({
+              total: badgesData.length || 8,
+              unlocked,
+              progressText: `${unlocked}/${badgesData.length || 8} validés`,
+              latest: badgesData[0] || null
+            });
+          }
+        } catch (e) {
+          console.warn('Erreur lors du chargement des statistiques', e);
+        }
+
         // Init notifications for authenticated users
         await registerForPushNotificationsAsync();
         await scheduleDailyStreakReminder();
       }
     };
     checkAuth();
+
+    // Fetch Weather
+    const loadWeather = async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        setWeather({ temp: '--', description: 'Accès refusé', icon: 'cloud-off' });
+        return;
+      }
+      try {
+        const location = await Location.getCurrentPositionAsync({});
+        const token = await AsyncStorage.getItem('token');
+        const weatherRes = await fetch(`${API_URL}/weather?lat=${location.coords.latitude}&lon=${location.coords.longitude}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined
+        });
+        if (weatherRes.ok) {
+          const weatherData = await weatherRes.json();
+          setWeather(weatherData);
+        }
+      } catch (e) {
+        setWeather({ temp: '--', description: 'Indisponible', icon: 'cloud-off' });
+      }
+    };
+    loadWeather();
 
     floatAnim1.value = withRepeat(withSequence(withTiming(-15, { duration: 3000 }), withTiming(0, { duration: 3000 })), -1, true);
     floatAnim2.value = withRepeat(withSequence(withTiming(20, { duration: 4000 }), withTiming(0, { duration: 4000 })), -1, true);
@@ -242,7 +298,7 @@ export default function HomeScreen() {
                   </View>
                   <View style={styles.statTextColumn}>
                     <Text numberOfLines={1} style={styles.statLabel}>SÉRIE</Text>
-                    <Text numberOfLines={1} style={styles.statValue}>12 Jours</Text>
+                    <Text numberOfLines={1} style={styles.statValue}>{streak} Jours</Text>
                     <Text numberOfLines={1} style={styles.statSub}>+1 aujourd'hui</Text>
                   </View>
                 </View>
@@ -252,12 +308,12 @@ export default function HomeScreen() {
                 {/* Right Panel: Weather */}
                 <View style={styles.statBox}>
                   <View style={[styles.statIconFrame, { backgroundColor: '#E0F2FE' }]}>
-                    <Feather name="cloud-drizzle" size={22} color="#0284C7" />
+                    <Feather name={weather.icon as any} size={22} color="#0284C7" />
                   </View>
                   <View style={styles.statTextColumn}>
                     <Text numberOfLines={1} style={styles.statLabel}>MÉTÉO</Text>
-                    <Text numberOfLines={1} style={styles.statValue}>18°C</Text>
-                    <Text numberOfLines={1} style={styles.statSub}>Pluie légère</Text>
+                    <Text numberOfLines={1} style={styles.statValue}>{weather.temp !== '--' ? `${weather.temp}°C` : '--'}</Text>
+                    <Text numberOfLines={1} style={styles.statSub}>{weather.description}</Text>
                   </View>
                 </View>
 
@@ -370,7 +426,7 @@ export default function HomeScreen() {
         <Animated.View entering={FadeInDown.delay(600).duration(800).springify()} style={styles.badgeSection}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Objectifs du Mois</Text>
-            <Text style={[styles.seeAllText, { color: selectedMood.accent }]}>3/8 validés</Text>
+            <Text style={[styles.seeAllText, { color: selectedMood.accent }]}>{badges.progressText}</Text>
           </View>
           <View style={styles.badgeBoxShadow}>
             <BlurView intensity={40} tint="light" style={styles.badgeCard}>
@@ -379,10 +435,10 @@ export default function HomeScreen() {
                   <Text style={styles.badgeEmojiLarge}>💎</Text>
                 </View>
                 <View style={styles.badgeInfoColumn}>
-                  <Text style={styles.badgeName}>Semaine Parfaite</Text>
-                  <Text style={styles.badgeProgressText}>5 check-ins consécutifs sur 7</Text>
+                  <Text style={styles.badgeName}>{badges.latest?.badge?.name || 'Semaine Parfaite'}</Text>
+                  <Text style={styles.badgeProgressText}>{badges.latest?.badge?.description || '5 check-ins consécutifs sur 7'}</Text>
                   <View style={styles.badgeProgressBarBg}>
-                    <View style={[styles.badgeProgressBarFill, { width: '70%', backgroundColor: selectedMood.accent }]} />
+                    <View style={[styles.badgeProgressBarFill, { width: `${badges.latest?.progress || 0}%`, backgroundColor: selectedMood.accent }]} />
                   </View>
                 </View>
               </View>

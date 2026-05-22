@@ -35,6 +35,12 @@
           "photosPermission": "L'application a besoin d'accéder à vos photos pour analyser votre style.",
           "cameraPermission": "L'application a besoin d'accéder à la caméra pour prendre un selfie et analyser votre style."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "L'application a besoin d'accéder à votre position pour afficher la météo de votre ville."
+        }
       ]
     ],
     "experiments": {
