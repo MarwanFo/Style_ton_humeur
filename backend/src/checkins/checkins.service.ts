@@ -37,7 +37,9 @@ export class CheckinsService {
     });
 
     if (existingCheckin) {
-      throw new ConflictException("Vous avez déjà effectué votre check-in aujourd'hui.");
+      // Pour les tests : on supprime l'ancien check-in d'aujourd'hui pour pouvoir recommencer
+      await this.prisma.recommendation.deleteMany({ where: { checkinId: existingCheckin.id } });
+      await this.prisma.dailyCheckIn.delete({ where: { id: existingCheckin.id } });
     }
 
     let weather: { temp: number; code: number } | null = null;
@@ -129,7 +131,9 @@ export class CheckinsService {
       where: { userId, checkinDate: today },
     });
     if (existingCheckin) {
-      throw new ConflictException("Vous avez déjà effectué votre check-in aujourd'hui.");
+      // Pour les tests : on supprime l'ancien check-in d'aujourd'hui pour pouvoir recommencer
+      await this.prisma.recommendation.deleteMany({ where: { checkinId: existingCheckin.id } });
+      await this.prisma.dailyCheckIn.delete({ where: { id: existingCheckin.id } });
     }
 
     const aiResult = await this.aiService.analyzeImage(

@@ -1,13 +1,16 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import OpenAI from 'openai';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  private ai: GoogleGenerativeAI;
+  private openai: OpenAI;
 
   constructor() {
-    this.ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'DUMMY_KEY');
+    this.openai = new OpenAI({
+      apiKey: process.env.NVIDIA_API_KEY || 'DUMMY_KEY',
+      baseURL: 'https://integrate.api.nvidia.com/v1',
+    });
   }
 
   async getRecommendations(
@@ -16,11 +19,6 @@ export class AiService {
     weather: { temp: number; code: number } | null,
   ): Promise<any> {
     try {
-      const model = this.ai.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: { responseMimeType: 'application/json' },
-      });
-
       const weatherContext = weather
         ? `Météo actuelle : ${weather.temp}°C, code météo ${weather.code}`
         : `Météo non disponible.`;
@@ -40,12 +38,21 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'a
   "music": [{"title":"titre","artist":"artiste","genre":"genre","tempo":"lent|modéré|rapide"}] // 1 à 3
 }`;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
-      return JSON.parse(text);
+      const response = await this.openai.chat.completions.create({
+        model: 'meta/llama-3.1-8b-instruct',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+
+      const text = response.choices[0].message?.content || '{}';
+      
+      // Cleanup markdown if the model wraps the JSON
+      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      
+      return JSON.parse(cleanedText);
     } catch (error) {
-      this.logger.error('Erreur lors de la génération avec Gemini', error);
-      // Fallback local en cas de panne de l'IA (Résilience de niveau 3)
+      this.logger.error('Erreur lors de la génération avec Nvidia Llama 3', error);
       return this.getFallbackRecommendation();
     }
   }
@@ -56,11 +63,6 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'a
     userProfile: { gender: string; age: number },
   ): Promise<any> {
     try {
-      const model = this.ai.getGenerativeModel({
-        model: 'gemini-2.5-flash',
-        generationConfig: { responseMimeType: 'application/json' },
-      });
-
       const prompt = `
 Tu es un styliste visuel expert. L'utilisateur est un(e) ${userProfile.gender} de ${userProfile.age} ans.
 Analyse la photo fournie pour comprendre son style, sa morphologie, sa colorimétrie (peau/cheveux) et son aura actuelle.
@@ -76,19 +78,32 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'a
   "music": [{"title":"titre","artist":"artiste","genre":"genre","tempo":"lent|modéré|rapide"}] // 1 à 3
 }`;
 
-      const result = await model.generateContent([
-        prompt,
-        {
-          inlineData: {
-            data: base64Image,
-            mimeType: mimeType,
+      // We use 11b-vision-instruct because 3.1-8b is text-only
+      const response = await this.openai.chat.completions.create({
+        model: 'meta/llama-3.2-11b-vision-instruct',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
+                },
+              },
+            ],
           },
-        },
-      ]);
-      const text = result.response.text();
-      return JSON.parse(text);
+        ],
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+
+      const text = response.choices[0].message?.content || '{}';
+      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      return JSON.parse(cleanedText);
     } catch (error) {
-      this.logger.error("Erreur lors de l'analyse visuelle avec Gemini", error);
+      this.logger.error("Erreur lors de l'analyse visuelle avec Nvidia Llama", error);
       return this.getFallbackRecommendation();
     }
   }
