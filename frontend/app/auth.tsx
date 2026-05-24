@@ -10,11 +10,13 @@ import {
   Platform, 
   ScrollView, 
   ActivityIndicator,
-  Alert 
+  Alert,
+  StatusBar
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons, Feather } from '@expo/vector-icons';
+import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/constants/Api';
@@ -30,7 +32,7 @@ export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [gender, setGender] = useState('femme'); // Default in French
+  const [gender, setGender] = useState('femme');
   const [age, setAge] = useState('');
 
   const handleAuth = async () => {
@@ -48,7 +50,6 @@ export default function AuthScreen() {
 
     try {
       if (isLogin) {
-        // LOGIN CALL
         const response = await fetch(`${API_URL}/auth/login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -61,14 +62,11 @@ export default function AuthScreen() {
           throw new Error(data.message || 'Identifiants incorrects.');
         }
 
-        // Save token and user details to storage
         await AsyncStorage.setItem('token', data.access_token);
         await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
-        // Go to dashboard
         router.replace('/(tabs)');
       } else {
-        // REGISTER CALL
         const response = await fetch(`${API_URL}/auth/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -87,11 +85,11 @@ export default function AuthScreen() {
           throw new Error(data.message || "Impossible de créer le compte.");
         }
 
-        Alert.alert('Succès 🎉', 'Votre compte a été créé avec succès ! Connectez-vous maintenant.');
+        Alert.alert('Bienvenue', 'Votre compte a été créé avec succès.');
         setIsLogin(true);
       }
     } catch (err: any) {
-      Alert.alert('Erreur d\'authentification', err.message || 'Une erreur est survenue.');
+      Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
     } finally {
       setLoading(false);
     }
@@ -102,28 +100,37 @@ export default function AuthScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
       style={styles.container}
     >
-      {/* Background soft layout matching home */}
-      <LinearGradient
-        colors={['#FFF5F5', '#F3F4FB', '#E0E7FF']}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <StatusBar barStyle="dark-content" />
+      
+      {/* High-end ambient colorful background */}
+      <View style={StyleSheet.absoluteFill}>
+        <LinearGradient 
+          colors={['#F5F3FF', '#FCE7F3', '#FFE4E6']} 
+          style={StyleSheet.absoluteFillObject}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <View style={styles.orbTopRight} />
+        <View style={styles.orbBottomLeft} />
+        <BlurView intensity={60} tint="light" style={StyleSheet.absoluteFill} />
+      </View>
 
       <ScrollView contentContainerStyle={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         
         {/* LOGO & HEADING */}
-        <View style={styles.logoSection}>
+        <Animated.View entering={FadeInUp.duration(800).springify()} style={styles.logoSection}>
           <View style={styles.logoIconBg}>
-            <Ionicons name="sparkles" size={32} color="#7F00FF" />
+            <Ionicons name="sparkles" size={28} color="#8B5CF6" />
           </View>
-          <Text style={styles.brandTitle}>V I B E S</Text>
-          <Text style={styles.brandSubtitle}>Révélez votre style à travers votre humeur</Text>
-        </View>
+          <Text style={styles.brandTitle}>AURA STUDIO</Text>
+          <Text style={styles.brandSubtitle}>Révélez votre esthétique & votre humeur</Text>
+        </Animated.View>
 
         {/* GLASS CARD FORM CONTAINER */}
-        <View style={styles.glassWrapper}>
-          <BlurView intensity={70} tint="light" style={styles.glassCard}>
+        <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.glassWrapper}>
+          <BlurView intensity={90} tint="light" style={styles.glassCard}>
             
-            {/* SEGMENT SELECTOR [LOGIN / REGISTER] */}
+            {/* SEGMENT SELECTOR */}
             <View style={styles.segmentContainer}>
               <Pressable 
                 onPress={() => setIsLogin(true)}
@@ -146,13 +153,14 @@ export default function AuthScreen() {
                 <View style={styles.inputWrapper}>
                   <Text style={styles.inputLabel}>Pseudo</Text>
                   <View style={styles.inputContainer}>
-                    <Feather name="user" size={18} color="#8A8A9E" style={styles.inputIcon} />
+                    <Feather name="user" size={18} color="#8B5CF6" style={styles.inputIcon} />
                     <TextInput 
-                      placeholder="Ex: Chaymae" 
-                      placeholderTextColor="#A0A0B0"
+                      placeholder="Ex: Marwan" 
+                      placeholderTextColor="#9CA3AF"
                       value={displayName}
                       onChangeText={setDisplayName}
                       style={styles.input}
+                      selectionColor="#8B5CF6"
                     />
                   </View>
                 </View>
@@ -161,15 +169,16 @@ export default function AuthScreen() {
               <View style={styles.inputWrapper}>
                 <Text style={styles.inputLabel}>Email</Text>
                 <View style={styles.inputContainer}>
-                  <Feather name="mail" size={18} color="#8A8A9E" style={styles.inputIcon} />
+                  <Feather name="mail" size={18} color="#8B5CF6" style={styles.inputIcon} />
                   <TextInput 
-                    placeholder="votre.email@exemple.com" 
-                    placeholderTextColor="#A0A0B0"
+                    placeholder="votre@email.com" 
+                    placeholderTextColor="#9CA3AF"
                     keyboardType="email-address"
                     autoCapitalize="none"
                     value={email}
                     onChangeText={setEmail}
                     style={styles.input}
+                    selectionColor="#8B5CF6"
                   />
                 </View>
               </View>
@@ -177,14 +186,15 @@ export default function AuthScreen() {
               <View style={styles.inputWrapper}>
                 <Text style={styles.inputLabel}>Mot de passe</Text>
                 <View style={styles.inputContainer}>
-                  <Feather name="lock" size={18} color="#8A8A9E" style={styles.inputIcon} />
+                  <Feather name="lock" size={18} color="#8B5CF6" style={styles.inputIcon} />
                   <TextInput 
                     placeholder="••••••••" 
-                    placeholderTextColor="#A0A0B0"
+                    placeholderTextColor="#9CA3AF"
                     secureTextEntry
                     value={password}
                     onChangeText={setPassword}
                     style={styles.input}
+                    selectionColor="#8B5CF6"
                   />
                 </View>
               </View>
@@ -194,14 +204,15 @@ export default function AuthScreen() {
                   <View style={styles.inputWrapper}>
                     <Text style={styles.inputLabel}>Âge</Text>
                     <View style={styles.inputContainer}>
-                      <Feather name="calendar" size={18} color="#8A8A9E" style={styles.inputIcon} />
+                      <Feather name="calendar" size={18} color="#8B5CF6" style={styles.inputIcon} />
                       <TextInput 
-                        placeholder="Ex: 22" 
-                        placeholderTextColor="#A0A0B0"
+                        placeholder="Ex: 25" 
+                        placeholderTextColor="#9CA3AF"
                         keyboardType="numeric"
                         value={age}
                         onChangeText={setAge}
                         style={styles.input}
+                        selectionColor="#8B5CF6"
                       />
                     </View>
                   </View>
@@ -213,14 +224,14 @@ export default function AuthScreen() {
                         onPress={() => setGender('femme')}
                         style={[styles.genderBtn, gender === 'femme' && styles.genderBtnActive]}
                       >
-                        <Ionicons name="woman" size={16} color={gender === 'femme' ? '#FFF' : '#7F00FF'} />
+                        <Ionicons name="woman" size={16} color={gender === 'femme' ? '#FFF' : '#8B5CF6'} />
                         <Text style={[styles.genderBtnText, gender === 'femme' && styles.genderBtnTextActive]}>Femme</Text>
                       </Pressable>
                       <Pressable 
                         onPress={() => setGender('homme')}
                         style={[styles.genderBtn, gender === 'homme' && styles.genderBtnActive]}
                       >
-                        <Ionicons name="man" size={16} color={gender === 'homme' ? '#FFF' : '#7F00FF'} />
+                        <Ionicons name="man" size={16} color={gender === 'homme' ? '#FFF' : '#8B5CF6'} />
                         <Text style={[styles.genderBtnText, gender === 'homme' && styles.genderBtnTextActive]}>Homme</Text>
                       </Pressable>
                     </View>
@@ -228,27 +239,25 @@ export default function AuthScreen() {
                 </>
               )}
 
-              {/* ACTION CTA */}
+              {/* ACTION CTA (Vibrant Purple/Pink Gradient) */}
               <Pressable style={styles.actionBtn} onPress={handleAuth} disabled={loading}>
-                <LinearGradient
-                  colors={['#7F00FF', '#E100FF']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
+                <LinearGradient 
+                  colors={['#8B5CF6', '#EC4899']} 
+                  start={{ x: 0, y: 0 }} 
+                  end={{ x: 1, y: 1 }} 
                   style={styles.actionGradient}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#FFF" />
                   ) : (
-                    <Text style={styles.actionText}>{isLogin ? 'Se connecter' : 'Créer mon compte'}</Text>
+                    <Text style={styles.actionText}>{isLogin ? 'Accéder' : 'Rejoindre'}</Text>
                   )}
                 </LinearGradient>
               </Pressable>
 
             </View>
-
           </BlurView>
-        </View>
-
+        </Animated.View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -257,13 +266,33 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAF9FF',
+    backgroundColor: '#FAFAFA',
+  },
+  orbTopRight: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 999,
+    backgroundColor: '#C7D2FE', // Light blue-purple
+    top: -80,
+    right: -80,
+    opacity: 0.6,
+  },
+  orbBottomLeft: {
+    position: 'absolute',
+    width: 250,
+    height: 250,
+    borderRadius: 999,
+    backgroundColor: '#FBCFE8', // Light pink-red
+    bottom: -60,
+    left: -80,
+    opacity: 0.6,
   },
   scrollContainer: {
     flexGrow: 1,
     justifyContent: 'center',
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingTop: 80,
     paddingBottom: 40,
   },
   logoSection: {
@@ -271,75 +300,77 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   logoIconBg: {
-    width: 68,
-    height: 68,
-    borderRadius: 22,
+    width: 60,
+    height: 60,
+    borderRadius: 20,
     backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#7F00FF',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.15,
-    shadowRadius: 15,
-    elevation: 5,
-    marginBottom: 16,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 3,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
   },
   brandTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#1E1E2C',
-    letterSpacing: 8,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: 6,
     marginBottom: 8,
   },
   brandSubtitle: {
-    fontSize: 14,
-    color: '#8A8A9E',
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '500',
     textAlign: 'center',
   },
   glassWrapper: {
-    borderRadius: 28,
+    borderRadius: 32,
     overflow: 'hidden',
+    backgroundColor: '#FFF',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.08,
+    shadowRadius: 40,
+    elevation: 10,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-    shadowColor: '#7F00FF',
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.1,
-    shadowRadius: 25,
-    elevation: 8,
+    borderColor: 'rgba(255,255,255,0.4)',
   },
   glassCard: {
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-    padding: 24,
+    padding: 32,
   },
   segmentContainer: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.04)',
-    borderRadius: 14,
-    padding: 4,
-    marginBottom: 28,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 16,
+    padding: 6,
+    marginBottom: 32,
   },
   segmentBtn: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
-    borderRadius: 10,
+    borderRadius: 12,
   },
   segmentBtnActive: {
     backgroundColor: '#FFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowRadius: 12,
     elevation: 2,
   },
   segmentText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#8A8A9E',
+    color: '#9CA3AF',
   },
   segmentTextActive: {
-    color: '#1E1E2C',
+    color: '#111827',
     fontWeight: '700',
   },
   formContainer: {
@@ -349,24 +380,22 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   inputLabel: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#1E1E2C',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     paddingLeft: 4,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFF',
+    backgroundColor: '#F9FAFB',
     borderRadius: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     height: 56,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.02,
-    shadowRadius: 8,
+    borderColor: '#EDE9FE',
   },
   inputIcon: {
     marginRight: 12,
@@ -374,8 +403,8 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 15,
-    color: '#1E1E2C',
-    fontWeight: '500',
+    color: '#111827',
+    fontWeight: '600',
   },
   genderRow: {
     flexDirection: 'row',
@@ -387,34 +416,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: 'rgba(127, 0, 255, 0.05)',
+    backgroundColor: '#F9FAFB',
     borderRadius: 16,
-    height: 50,
+    height: 56,
     borderWidth: 1,
-    borderColor: 'rgba(127, 0, 255, 0.1)',
+    borderColor: '#EDE9FE',
   },
   genderBtnActive: {
-    backgroundColor: '#7F00FF',
-    borderColor: '#7F00FF',
+    backgroundColor: '#8B5CF6',
+    borderColor: '#8B5CF6',
   },
   genderBtnText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#7F00FF',
+    color: '#8B5CF6',
   },
   genderBtnTextActive: {
     color: '#FFF',
   },
   actionBtn: {
-    marginTop: 10,
-    shadowColor: '#7F00FF',
-    shadowOffset: { width: 0, height: 10 },
+    marginTop: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
-    shadowRadius: 15,
-    elevation: 8,
+    shadowRadius: 20,
+    elevation: 6,
   },
   actionGradient: {
-    borderRadius: 16,
     height: 56,
     justifyContent: 'center',
     alignItems: 'center',

@@ -6,7 +6,9 @@ import {
   Pressable, 
   Dimensions, 
   ActivityIndicator,
-  Alert 
+  Alert,
+  StatusBar,
+  ScrollView
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -84,7 +86,6 @@ export default function QuestionnaireScreen() {
       [activeQuestion.id]: value
     }));
 
-    // Auto-advance with a slight elegant delay
     setTimeout(() => {
       if (currentStep < QUESTIONS.length - 1) {
         setCurrentStep(prev => prev + 1);
@@ -112,7 +113,6 @@ export default function QuestionnaireScreen() {
         return;
       }
 
-      // Format answers as key-value JSON representing the user input
       const response = await fetch(`${API_URL}/checkins`, {
         method: 'POST',
         headers: { 
@@ -130,11 +130,9 @@ export default function QuestionnaireScreen() {
         throw new Error(data.message || 'Impossible de soumettre le check-in.');
       }
 
-      // Save recommendation to storage to read on screen
       await AsyncStorage.setItem('latestRecommendation', JSON.stringify(data.recommendation));
       await AsyncStorage.setItem('latestCheckin', JSON.stringify(data.checkin));
       
-      // Go to recommendations screen
       router.replace('/style-analysis');
     } catch (err: any) {
       Alert.alert('Échec de génération', err.message || 'Une erreur est survenue.');
@@ -147,32 +145,52 @@ export default function QuestionnaireScreen() {
 
   return (
     <View style={styles.container}>
-      <LinearGradient
-        colors={['#FFF9F9', '#F5F7FF', '#EFF9F6']}
-        style={StyleSheet.absoluteFillObject}
-      />
+      <StatusBar barStyle="dark-content" />
+      
+      {/* Absolute Ambient Background */}
+      <View style={StyleSheet.absoluteFill}>
+        <LinearGradient
+          colors={['#F5F3FF', '#FCE7F3', '#FFE4E6']}
+          style={StyleSheet.absoluteFillObject}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        />
+        <View style={styles.orbTopRight} />
+        <View style={styles.orbBottomLeft} />
+        <BlurView intensity={70} tint="light" style={StyleSheet.absoluteFillObject} />
+      </View>
 
       {/* TOP NAVIGATION */}
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Pressable onPress={handleBack} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#1E1E2C" />
+          <Ionicons name="arrow-back" size={22} color="#111827" />
         </Pressable>
-        <Text style={styles.headerTitle}>Mood Quiz</Text>
+        <Text style={styles.headerTitle}>AURA QUIZ</Text>
         <View style={styles.placeholderBtn} />
       </View>
 
       {/* PROGRESS BAR */}
       <View style={styles.progressContainer}>
-        <View style={[styles.progressBarFill, { width: `${progressPercent}%` }]} />
+        <View style={styles.progressBg}>
+          <LinearGradient
+            colors={['#8B5CF6', '#EC4899']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={[StyleSheet.absoluteFillObject, { width: `${progressPercent}%`, borderRadius: 4 }]}
+          />
+        </View>
       </View>
 
-      {/* CARD CONTENT CONTAINER */}
-      <View style={styles.cardWrapper}>
+      {/* ENTIRE LAYOUT SCROLLABLE FOR FULL RESPONSIVENESS */}
+      <ScrollView 
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 40 }]} 
+        showsVerticalScrollIndicator={false}
+      >
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#7F00FF" />
+            <ActivityIndicator size="large" color="#8B5CF6" />
             <Text style={styles.loadingTitle}>Consultation de l'IA...</Text>
-            <Text style={styles.loadingSub}>Gemini analyse vos envies et génère vos tenues et playlists idéales.</Text>
+            <Text style={styles.loadingSub}>Gemini analyse vos envies pour façonner vos recommandations exclusives de style.</Text>
           </View>
         ) : (
           <Animated.View 
@@ -182,7 +200,7 @@ export default function QuestionnaireScreen() {
             layout={Layout.springify()}
             style={styles.questionCard}
           >
-            <Text style={styles.questionStep}>QUESTION {currentStep + 1} SUR {QUESTIONS.length}</Text>
+            <Text style={styles.questionStep}>ÉTAPE {currentStep + 1} SUR {QUESTIONS.length}</Text>
             <Text style={styles.questionTitle}>{activeQuestion.title}</Text>
             <Text style={styles.questionSubtitle}>{activeQuestion.subtitle}</Text>
 
@@ -210,7 +228,7 @@ export default function QuestionnaireScreen() {
                     <Ionicons 
                       name={isSelected ? "checkmark-circle" : "chevron-forward-outline"} 
                       size={20} 
-                      color={isSelected ? "#7F00FF" : "#8A8A9E"} 
+                      color={isSelected ? "#8B5CF6" : "#9CA3AF"} 
                     />
                   </Pressable>
                 );
@@ -218,7 +236,7 @@ export default function QuestionnaireScreen() {
             </View>
           </Animated.View>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -226,76 +244,96 @@ export default function QuestionnaireScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FAFCFF',
+    backgroundColor: '#FAFAFA',
+  },
+  orbTopRight: {
+    position: 'absolute',
+    width: 300,
+    height: 300,
+    borderRadius: 999,
+    backgroundColor: '#C7D2FE',
+    top: -100,
+    right: -100,
+    opacity: 0.6,
+  },
+  orbBottomLeft: {
+    position: 'absolute',
+    width: 280,
+    height: 280,
+    borderRadius: 999,
+    backgroundColor: '#FBCFE8',
+    bottom: -60,
+    left: -80,
+    opacity: 0.6,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingBottom: 16,
+    paddingHorizontal: 24,
+    paddingBottom: 20,
   },
   backBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: '#FFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.05,
     shadowRadius: 10,
     elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
   },
   headerTitle: {
-    fontSize: 18,
+    fontSize: 10,
     fontWeight: '800',
-    color: '#1E1E2C',
+    color: '#6B7280',
+    letterSpacing: 4,
   },
   placeholderBtn: {
-    width: 44,
+    width: 48,
   },
   progressContainer: {
+    paddingHorizontal: 24,
+    marginBottom: 32,
+  },
+  progressBg: {
     height: 6,
     backgroundColor: 'rgba(0,0,0,0.04)',
-    marginHorizontal: 22,
-    borderRadius: 3,
+    borderRadius: 100,
     overflow: 'hidden',
-    marginBottom: 30,
   },
-  progressBarFill: {
-    height: '100%',
-    backgroundColor: '#7F00FF',
-    borderRadius: 3,
-  },
-  cardWrapper: {
-    flex: 1,
-    paddingHorizontal: 22,
-    justifyContent: 'flex-start',
+  scrollContent: {
+    paddingHorizontal: 24,
+    flexGrow: 1,
   },
   questionCard: {
     flex: 1,
   },
   questionStep: {
     fontSize: 10,
-    fontWeight: '900',
-    color: '#8A8A9E',
+    fontWeight: '800',
+    color: '#8B5CF6',
     letterSpacing: 2,
     marginBottom: 12,
   },
   questionTitle: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#1E1E2C',
+    color: '#111827',
     lineHeight: 32,
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   questionSubtitle: {
     fontSize: 14,
-    color: '#7C7C8E',
+    color: '#6B7280',
     lineHeight: 20,
-    marginBottom: 32,
+    marginBottom: 28,
     fontWeight: '500',
   },
   optionsList: {
@@ -305,33 +343,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFF',
-    borderRadius: 20,
-    padding: 16,
+    borderRadius: 24,
+    padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.03)',
+    borderColor: '#F3F4F6',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.03,
-    shadowRadius: 12,
+    shadowOpacity: 0.02,
+    shadowRadius: 16,
     elevation: 3,
   },
   optionItemActive: {
-    borderColor: '#7F00FF',
+    borderColor: '#8B5CF6',
     borderWidth: 2,
-    shadowColor: '#7F00FF',
-    shadowOpacity: 0.08,
+    shadowColor: '#8B5CF6',
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
   emojiFrame: {
     width: 48,
     height: 48,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.03)',
+    borderRadius: 16,
+    backgroundColor: '#F9FAFB',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 14,
+    marginRight: 16,
   },
   emojiFrameActive: {
-    backgroundColor: 'rgba(127,0,255,0.1)',
+    backgroundColor: '#F5F3FF',
   },
   emojiText: {
     fontSize: 22,
@@ -342,35 +381,35 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E1E2C',
+    color: '#111827',
     marginBottom: 4,
   },
   optionLabelActive: {
-    color: '#7F00FF',
+    color: '#8B5CF6',
   },
   optionDesc: {
     fontSize: 12,
-    color: '#8A8A9E',
+    color: '#6B7280',
+    fontWeight: '500',
   },
-  // Loading state
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
+    paddingVertical: 40,
   },
   loadingTitle: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#1E1E2C',
+    color: '#111827',
     marginTop: 24,
     marginBottom: 8,
   },
   loadingSub: {
-    fontSize: 14,
-    color: '#8A8A9E',
+    fontSize: 13,
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
     fontWeight: '500',
   },
 });

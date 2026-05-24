@@ -1,8 +1,7 @@
 import { Platform } from 'react-native';
 
-// Standard local IP or localhost depending on whether running in simulator or physical phone.
-// TIP: If using a physical phone with Expo Go, change the IP address to your computer's local network IP (e.g. 192.168.1.50)
-export const API_URL = 'http://192.168.11.159:3000/api';
+// La variable d'environnement prend le dessus si elle existe (via .env)
+export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.137.1:3000/api';
 
 export default {
   API_URL,

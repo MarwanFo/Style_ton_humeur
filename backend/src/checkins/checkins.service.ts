@@ -2,6 +2,7 @@ import { Injectable, ConflictException, NotFoundException } from '@nestjs/common
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { WeatherService } from '../weather/weather.service';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 import { differenceInCalendarDays, isSameWeek } from 'date-fns';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class CheckinsService {
     private prisma: PrismaService,
     private aiService: AiService,
     private weatherService: WeatherService,
+    private cloudinaryService: CloudinaryService,
   ) {}
 
   async createCheckIn(
@@ -162,6 +164,18 @@ export class CheckinsService {
       };
     }
 
+    // Téléverser l'image sur Cloudinary si valide
+    let cloudinaryUrl: string | null = null;
+    try {
+      const mimePrefix = `data:${data.mimeType || 'image/jpeg'};base64,`;
+      const fullBase64 = data.base64Image.startsWith('data:') 
+        ? data.base64Image 
+        : `${mimePrefix}${data.base64Image}`;
+      cloudinaryUrl = await this.cloudinaryService.uploadImage(fullBase64);
+    } catch (e) {
+      console.error("Cloudinary upload failed, proceeding without cloud storage", e);
+    }
+
     // Si valide, on procède à l'enregistrement (et écrasement de l'ancien check-in du jour s'il existe)
     const existingCheckin = await this.prisma.dailyCheckIn.findFirst({
       where: { userId, checkinDate: today },
@@ -181,6 +195,7 @@ export class CheckinsService {
           checkinDate: today,
           moodDetected,
           moodSelected,
+          imageUrl: cloudinaryUrl, // URL sauvegardée
           answers: { 
             source: 'camera_scan',
             height: updatedHeight,
