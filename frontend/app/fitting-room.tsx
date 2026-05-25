@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import { API_URL } from '@/constants/Api';
 
 const { width, height } = Dimensions.get('window');
 
@@ -96,7 +97,7 @@ export default function FittingRoomScreen() {
     setScanCompleted(false);
   };
 
-  const startFittingScan = () => {
+  const startFittingScan = async () => {
     if (isScanning) return;
     
     // Calculate custom score based on equipped items ratio
@@ -110,23 +111,59 @@ export default function FittingRoomScreen() {
     setScanCompleted(false);
     laserOpacity.value = withTiming(1, { duration: 200 });
     
-    // Laser sweep animation
+    // Laser sweep animation looping infinitely
     scanPosition.value = -20;
     scanPosition.value = withRepeat(
       withTiming(260, { duration: 1200, easing: Easing.bezier(0.42, 0, 0.58, 1) }),
-      2,
-      true,
-      () => {
-        // Callback on UI thread, transition to JS
-        runOnJS(finishScan)(equippedCount);
-      }
+      -1,
+      true
     );
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      // If we don't have a scanned image (e.g. from the questionnaire), use a default model silhouette
+      const humanImg = imageUrl || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80";
+      
+      // Select garment item image (different images depending on active outfit style)
+      let garmentImageUrl = "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80"; // default cool brown leather jacket
+      
+      if (activeOutfit.title.toLowerCase().includes('sport') || activeOutfit.title.toLowerCase().includes('décontracté')) {
+        garmentImageUrl = "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&q=80"; // White t-shirt
+      } else if (activeOutfit.title.toLowerCase().includes('chic') || activeOutfit.title.toLowerCase().includes('élégant')) {
+        garmentImageUrl = "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600&q=80"; // Smart dark blue blazer
+      }
+
+      const response = await fetch(`${API_URL}/checkins/virtual-try-on`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          humanImageUrl: humanImg,
+          garmentImageUrl: garmentImageUrl
+        })
+      });
+
+      const resData = await response.json();
+      if (response.ok && resData.success && resData.tryOnUrl) {
+        setImageUrl(resData.tryOnUrl);
+      } else {
+        Alert.alert('Mode Simulé', "L'IA VTON a échoué (limite d'API ou format). Affichage de la simulation.");
+      }
+    } catch (err) {
+      console.log('VTON fetch error:', err);
+      Alert.alert('Mode Simulé', "L'IA VTON n'a pas pu être contactée. Affichage de la simulation.");
+    } finally {
+      finishScan(equippedCount);
+    }
   };
 
   const finishScan = (equippedCount: number) => {
     setIsScanning(false);
     setScanCompleted(true);
     laserOpacity.value = withTiming(0, { duration: 300 });
+    scanPosition.value = withTiming(-20, { duration: 300 });
 
     // Calculate score
     const baseScore = 88 + Math.floor(Math.random() * 8); // 88 to 95
