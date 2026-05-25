@@ -28,14 +28,38 @@ Tu es un styliste expert. L'utilisateur est un(e) ${userProfile.gender} de ${use
 Réponses au questionnaire du jour : ${JSON.stringify(answers)}.
 ${weatherContext}
 
-Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'autre autour) :
+Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'autre autour, pas de balise markdown, juste le JSON brut).
+Règles importantes pour le JSON :
+1. Génère exactement 3 tenues dans "outfits".
+2. Génère exactement 2 routines dans "makeup".
+3. Génère entre 1 et 3 chansons dans "music".
+4. Ne mets pas de commentaires dans le JSON.
+5. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
+
+Structure attendue :
 {
   "detected_mood": "calme|confiant|joyeux|stressé|mélancolique|énergique",
   "style_keywords": ["mot1", "mot2"],
-  "justification": "courte phrase",
-  "outfits": [{"title":"nom","top":"haut","bottom":"bas","shoes":"chaussures","accessories":"acc"}], // exactement 3
-  "makeup": [{"type":"léger|intense","description":"desc"}], // exactement 2
-  "music": [{"title":"titre","artist":"artiste","genre":"genre","tempo":"lent|modéré|rapide"}] // 1 à 3
+  "justification": "courte phrase expliquant le choix",
+  "outfits": [
+    {
+      "title": "nom de la tenue",
+      "pieces": ["Haut (ex: pull en maille)", "Bas (ex: jean brut)", "Chaussures", "Accessoires"],
+      "justification": "justification spécifique pour ce look"
+    }
+  ],
+  "makeup": [
+    {
+      "title": "Nom de la routine",
+      "steps": ["Étape 1", "Étape 2"]
+    }
+  ],
+  "music": [
+    {
+      "title": "titre",
+      "artist": "artiste"
+    }
+  ]
 }`;
 
       const response = await this.openai.chat.completions.create({
@@ -46,11 +70,7 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'a
       });
 
       const text = response.choices[0].message?.content || '{}';
-      
-      // Cleanup markdown if the model wraps the JSON
-      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      
-      return JSON.parse(cleanedText);
+      return this.parseLlamaJson(text);
     } catch (error) {
       this.logger.error('Erreur lors de la génération avec Nvidia Llama 3', error);
       return this.getFallbackRecommendation();
@@ -77,19 +97,25 @@ Tu dois vérifier si la photo montre le CORPS ENTIER de la personne (de la tête
 - Si la photo est INVALIDE, tu dois obligatoirement mettre "is_full_body_valid": false dans le JSON, et écrire un message d'alerte sympa dans "error_alert" demandant une photo en pied. Ne génère pas de conseils de style si la photo est invalide.
 - Si la photo est valide (corps entier visible de la tête aux pieds), mets "is_full_body_valid": true, "error_alert": null, et réalise l'analyse complète.
 
-Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut) :
+Tu devez renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut).
+Règles importantes pour le JSON :
+1. Génère exactement 3 tenues dans "outfits" si la photo est valide, sinon un tableau vide [].
+2. Ne mets pas de commentaires dans le JSON.
+3. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
+
+Structure attendue :
 {
-  "is_full_body_valid": false, // Mettre false si c'est un selfie, portrait, buste, ou sans jambes/pieds visibles
+  "is_full_body_valid": false,
   "error_alert": "Message d'erreur si la photo est invalide, sinon null",
   "detected_mood": "calme|confiant|joyeux|stressé|mélancolique|énergique",
   "style_keywords": ["mot1", "mot2"],
   "outfits": [
     {
       "title": "Nom de la tenue",
-      "pieces": ["Pièce 1 (ex: Pull en maille beige)", "Pièce 2", "Pièce 3"],
-      "justification": "Pourquoi cette tenue va parfaitement à sa morphologie (taille ${userProfile.height || 'N/A'} cm) et s'accorde avec son origine (${userProfile.origin || 'N/A'})."
+      "pieces": ["Pièce 1", "Pièce 2", "Pièce 3"],
+      "justification": "Pourquoi cette tenue..."
     }
-  ] // exactement 3 tenues si valide, sinon tableau vide []
+  ]
 }`;
 
       const response = await this.openai.chat.completions.create({
@@ -108,26 +134,206 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun te
             ],
           },
         ],
-        temperature: 0.2, // Lower temperature makes the model strictly follow the instructions
+        temperature: 0.2,
         max_tokens: 1000,
       });
 
       const text = response.choices[0].message?.content || '{}';
-      
-      // Logger la réponse brute de Llama pour déboguer facilement
       this.logger.log(`[Llama Vision Response]: ${text}`);
 
-      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const result = JSON.parse(cleanedText);
+      const result = this.parseLlamaJson(text);
       
-      // Inject blank arrays to satisfy Database schema structure
-      result.makeup = [];
-      result.music = [];
+      result.makeup = [
+        { title: "Routine Légère (Journée)", steps: ["Crème hydratante protectrice", "Baume à lèvres neutre"] },
+        { title: "Routine Intense (Soirée)", steps: ["Mascara volumateur noir", "Rouge à lèvres nude discret"] }
+      ];
+      result.music = [
+        { title: "Lofi Beats", artist: "Chillhop Music" }
+      ];
       
       return result;
     } catch (error) {
       this.logger.error("Erreur lors de l'analyse visuelle avec Nvidia Llama", error);
       return this.getFallbackRecommendation();
+    }
+  }
+
+  /**
+   * Transcribes audio using Hugging Face Whisper Large v3 free API
+   */
+  async transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
+    try {
+      this.logger.log('Starting speech transcription with Hugging Face Whisper Large v3...');
+      const { client, handle_file } = require('@gradio/client');
+      const fs = require('fs');
+      const path = require('path');
+      const os = require('os');
+
+      const tempDir = os.tmpdir();
+      // Extract extension from mimeType (ex: "audio/m4a" -> "m4a")
+      const ext = mimeType.split('/')[1]?.split(';')[0] || 'm4a';
+      const tempFilePath = path.join(tempDir, `voice_checkin_${Date.now()}.${ext}`);
+
+      // Decode base64 to buffer
+      const audioBuffer = Buffer.from(base64Audio, 'base64');
+      fs.writeFileSync(tempFilePath, audioBuffer);
+
+      this.logger.log(`Temporary audio file written to: ${tempFilePath}`);
+
+      // Call Hugging Face space for Whisper transcription
+      const app = await client("nckandrw/whisper-app");
+      const result = await app.predict(2, [
+        handle_file(tempFilePath),
+        'Transcribe (Keep Language)'
+      ]);
+
+      // Clean up temp file
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+      }
+
+      let transcription = (result.data && result.data[0]) || '';
+      
+      // Clean up common Whisper silence hallucinations
+      const cleanTranscription = transcription.trim().replace(/^["'\s\[\]\\]+|["'\s\[\]\\]+$/g, '');
+      const hallucinations = [
+        /thanks for watching/i,
+        /thank you/i,
+        /merci beaucoup/i,
+        /^bye$/i,
+        /subtitles/i,
+        /sous-titres/i
+      ];
+
+      let isHallucination = false;
+      if (cleanTranscription.length === 0) {
+        isHallucination = true;
+      } else {
+        for (const pattern of hallucinations) {
+          if (pattern.test(cleanTranscription) && cleanTranscription.length < 25) {
+            isHallucination = true;
+            break;
+          }
+        }
+      }
+
+      if (isHallucination) {
+        this.logger.warn(`Filtered transcription hallucination/silence: "${transcription}"`);
+        transcription = '';
+      } else {
+        this.logger.log(`Transcription result: "${transcription}"`);
+      }
+
+      return transcription;
+    } catch (error) {
+      this.logger.error('Error during audio transcription', error);
+      throw new Error('Failed to transcribe audio.');
+    }
+  }
+
+  /**
+   * Generates outfit recommendations and a spoken AI reply from a voice transcript
+   */
+  async getVoiceRecommendations(
+    transcript: string,
+    userProfile: { gender: string; age: number }
+  ): Promise<any> {
+    try {
+      this.logger.log('Generating voice check-in recommendations...');
+      const prompt = `
+Tu es un styliste expert et conseiller de mode personnel.
+L'utilisateur s'est exprimé par message vocal et voici la transcription exacte de ce qu'il a dit :
+"${transcript}"
+
+L'utilisateur est un(e) ${userProfile.gender} de ${userProfile.age} ans.
+
+Tu dois impérativement renvoyer un JSON valide structuré exactement comme ceci, sans aucune explication ou texte autour (pas de balises markdown, pas de texte introductif, juste le JSON brut).
+Règles importantes pour le JSON :
+1. Génère exactement 3 tenues dans "outfits".
+2. Génère exactement 2 routines dans "makeup".
+3. Génère entre 1 et 3 chansons dans "music".
+4. Ne mets pas de commentaires dans le JSON.
+5. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
+
+Structure attendue :
+{
+  "detected_mood": "calme|confiant|joyeux|stressé|mélancolique|énergique",
+  "style_keywords": ["mot1", "mot2"],
+  "justification": "Courte phrase justifiant le style proposé.",
+  "ai_voice_message": "Un court message chaleureux, direct et encourageant (en français) à lire à voix haute par l'assistant. Par exemple, si l'utilisateur dit qu'il a un rendez-vous important, rassure-le et présente succinctement la tenue sélectionnée. Maximum 2 phrases.",
+  "outfits": [
+    {
+      "title": "Nom de la tenue",
+      "pieces": ["Haut (ex: Pull beige)", "Bas (ex: Pantalon chino noir)", "Chaussures", "Accessoires"],
+      "justification": "justification spécifique pour ce look"
+    }
+  ],
+  "makeup": [
+    {
+      "title": "Routine Légère (Journée)",
+      "steps": ["Crème hydratante protectrice", "Baume à lèvres neutre"]
+    }
+  ],
+  "music": [
+    {
+      "title": "Lofi Beats",
+      "artist": "Chillhop Music"
+    }
+  ]
+}`;
+
+      const response = await this.openai.chat.completions.create({
+        model: 'meta/llama-3.1-8b-instruct',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1024,
+      });
+
+      const text = response.choices[0].message?.content || '{}';
+      return this.parseLlamaJson(text);
+    } catch (error) {
+      this.logger.error('Error during voice LLM analysis', error);
+      const fallback = this.getFallbackRecommendation();
+      return {
+        ...fallback,
+        ai_voice_message: "Désolé, j'ai eu un problème pour analyser votre message vocal. Voici tout de même une sélection de tenues confortables pour aujourd'hui !"
+      };
+    }
+  }
+
+  private parseLlamaJson(text: string): any {
+    try {
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start === -1 || end === -1 || end < start) {
+        throw new Error('No JSON object found in response.');
+      }
+      let jsonStr = text.substring(start, end + 1);
+
+      // Clean JavaScript single-line comments while keeping URL protocols intact
+      jsonStr = jsonStr.split('\n')
+        .map(line => {
+          const commentIdx = line.indexOf('//');
+          if (commentIdx !== -1) {
+            const httpIdx = line.indexOf('http://');
+            const httpsIdx = line.indexOf('https://');
+            if (commentIdx === httpIdx + 5 || commentIdx === httpsIdx + 6) {
+              return line;
+            }
+            return line.substring(0, commentIdx);
+          }
+          return line;
+        })
+        .join('\n');
+
+      // Replace smart quotes with straight quotes
+      jsonStr = jsonStr.replace(/[\u201C\u201D\u201E\u201F]/g, '"');
+
+      return JSON.parse(jsonStr);
+    } catch (error) {
+      this.logger.error('Failed to parse JSON response from LLM', error);
+      this.logger.debug(`Raw LLM content was: \n${text}`);
+      throw error;
     }
   }
 

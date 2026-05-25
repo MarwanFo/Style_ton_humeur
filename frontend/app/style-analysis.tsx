@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
+import * as Speech from 'expo-speech';
 
 const { width } = Dimensions.get('window');
 
@@ -20,6 +21,7 @@ export default function StyleAnalysisScreen() {
   const [liked, setLiked] = useState<boolean | null>(null);
   const [isFavorited, setIsFavorited] = useState(false);
   const [activeOutfitIndex, setActiveOutfitIndex] = useState(0);
+  const [isSpeaking, setIsSpeaking] = useState(false);
 
   useEffect(() => {
     const loadRecommendationData = async () => {
@@ -46,7 +48,25 @@ export default function StyleAnalysisScreen() {
       }
     };
     loadRecommendationData();
+
+    return () => {
+      Speech.stop();
+    };
   }, []);
+
+  const toggleSpeech = () => {
+    if (isSpeaking) {
+      Speech.stop();
+      setIsSpeaking(false);
+    } else if (recommendation?.aiVoiceMessage) {
+      setIsSpeaking(true);
+      Speech.speak(recommendation.aiVoiceMessage, {
+        language: 'fr-FR',
+        onDone: () => setIsSpeaking(false),
+        onError: () => setIsSpeaking(false),
+      });
+    }
+  };
 
   const toggleFavorite = async () => {
     if (!recommendation) return;
@@ -77,6 +97,8 @@ export default function StyleAnalysisScreen() {
         favs.push({
           ...recommendation,
           imageUrl: checkinData?.imageUrl || recommendation.imageUrl || null,
+          transcript: checkinData?.transcript || recommendation.transcript || null,
+          aiVoiceMessage: checkinData?.aiVoiceMessage || recommendation.aiVoiceMessage || null,
           savedAt: new Date().toISOString()
         });
         setIsFavorited(true);
@@ -193,6 +215,23 @@ export default function StyleAnalysisScreen() {
             </View>
           </Animated.View>
         </Animated.View>
+
+          {/* VOICE ASSISTANT BANNER */}
+          {recommendation?.aiVoiceMessage && (
+            <Animated.View entering={FadeInDown.delay(220).duration(800).springify()} style={styles.voiceCard}>
+              <LinearGradient colors={['#F5F3FF', '#EDE9FE']} style={StyleSheet.absoluteFillObject} />
+              <View style={styles.voiceHeader}>
+                <Ionicons name="mic-circle" size={32} color="#8B5CF6" />
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.voiceTitle}>Note Vocale du Styliste</Text>
+                  <Text style={styles.voiceText}>{recommendation.aiVoiceMessage}</Text>
+                </View>
+                <Pressable style={styles.voicePlayBtn} onPress={toggleSpeech}>
+                  <Ionicons name={isSpeaking ? "pause" : "play"} size={20} color="#FFF" />
+                </Pressable>
+              </View>
+            </Animated.View>
+          )}
 
          {/* TRY ON FITTING ROOM BUTTON */}
          <Animated.View entering={FadeInDown.delay(250).duration(800).springify()} style={styles.tryOnSection}>
@@ -554,5 +593,40 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: '#FFF',
+  },
+  voiceCard: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
+  },
+  voiceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+  },
+  voiceTitle: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#8B5CF6',
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  voiceText: {
+    fontSize: 14,
+    color: '#4C1D95',
+    lineHeight: 20,
+    fontWeight: '500',
+  },
+  voicePlayBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 12,
   },
 });

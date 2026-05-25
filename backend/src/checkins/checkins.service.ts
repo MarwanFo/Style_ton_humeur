@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { WeatherService } from '../weather/weather.service';
@@ -245,6 +245,106 @@ export class CheckinsService {
         recommendation, 
         streak: updatedStreakState, 
         awardedBadges 
+      };
+    });
+  }
+
+  async createVoiceCheckIn(
+    userId: number,
+    data: { base64Audio: string; mimeType: string }
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new NotFoundException('Utilisateur non trouvé');
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
+
+    // 1. Transcribe audio to text
+    const transcript = await this.aiService.transcribeAudio(data.base64Audio, data.mimeType);
+
+    if (!transcript || transcript.trim() === '') {
+      throw new BadRequestException("Aucun message vocal n'a pu être détecté. Veuillez parler plus clairement et vérifier les permissions de votre micro.");
+    }
+
+    // 2. Get recommendations and generated voice message
+    const aiResult = await this.aiService.getVoiceRecommendations(transcript, {
+      gender: user.gender,
+      age: user.age,
+    });
+
+    // 3. Clear any existing check-in of the day (like questionnaire) to replace it
+    const existingCheckin = await this.prisma.dailyCheckIn.findFirst({
+      where: { userId, checkinDate: today },
+    });
+    if (existingCheckin) {
+      await this.prisma.recommendation.deleteMany({ where: { checkinId: existingCheckin.id } });
+      await this.prisma.dailyCheckIn.delete({ where: { id: existingCheckin.id } });
+    }
+
+    const moodDetected = aiResult.detected_mood || 'calme';
+    const moodSelected = moodDetected;
+
+    // 4. Save checkin with transcript and response voice message in DB
+    return this.prisma.$transaction(async (tx) => {
+      const checkin = await tx.dailyCheckIn.create({
+        data: {
+          userId,
+          checkinDate: today,
+          moodDetected,
+          moodSelected,
+          answers: { 
+            source: 'voice_checkin',
+            transcript: transcript
+          },
+          transcript: transcript,
+          aiVoiceMessage: aiResult.ai_voice_message,
+        },
+      });
+
+      const recommendation = await tx.recommendation.create({
+        data: {
+          userId,
+          checkinId: checkin.id,
+          recommendationDate: today,
+          outfits: aiResult.outfits,
+          makeup: aiResult.makeup,
+          music: aiResult.music,
+        },
+      });
+
+      let streak = await tx.streak.findUnique({ where: { userId } });
+      if (!streak) {
+        streak = await tx.streak.create({ data: { userId, currentStreak: 0, maxStreak: 0 } });
+      }
+
+      const updatedStreakState = this.calculateNewStreakState(today, {
+        currentStreak: streak.currentStreak,
+        maxStreak: streak.maxStreak,
+        lastCheckinDate: streak.lastCheckinDate,
+        weeklyFreezeUsedDate: streak.weeklyFreezeUsedDate,
+      });
+
+      await tx.streak.update({
+        where: { userId },
+        data: {
+          currentStreak: updatedStreakState.currentStreak,
+          maxStreak: updatedStreakState.maxStreak,
+          lastCheckinDate: updatedStreakState.lastCheckinDate,
+          weeklyFreezeUsedDate: updatedStreakState.weeklyFreezeUsedDate,
+        },
+      });
+
+      const awardedBadges = await this.checkAndAwardBadges(tx, userId, updatedStreakState.currentStreak);
+
+      return {
+        checkin,
+        recommendation,
+        streak: updatedStreakState,
+        awardedBadges,
+        transcript,
+        aiVoiceMessage: aiResult.ai_voice_message
       };
     });
   }

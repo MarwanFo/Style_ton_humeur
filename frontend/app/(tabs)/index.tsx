@@ -91,20 +91,36 @@ export default function HomeScreen() {
     }
   };
 
-  const handleScanStyle = async () => {
-    const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-    const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const handleScanStyle = () => {
+    Alert.alert(
+      "Style & Mode",
+      "Sélectionnez votre mode d'analyse :",
+      [
+        {
+          text: "🎙️ Assistant Vocal",
+          onPress: () => router.push('/voice-stylist')
+        },
+        {
+          text: "📸 Analyser ma silhouette",
+          onPress: async () => {
+            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+            const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
-    if (!cameraPermission.granted || !libraryPermission.granted) {
-      Alert.alert("Permissions", "L'accès à l'appareil photo est requis pour cette fonctionnalité premium.");
-      return;
-    }
+            if (!cameraPermission.granted || !libraryPermission.granted) {
+              Alert.alert("Permissions", "L'accès à l'appareil photo est requis pour cette fonctionnalité premium.");
+              return;
+            }
 
-    if (userProfile) {
-      if (userProfile.height && !heightVal) setHeightVal(String(userProfile.height));
-      if (userProfile.origin && !originVal) setOriginVal(userProfile.origin);
-    }
-    setIsFormModalVisible(true);
+            if (userProfile) {
+              if (userProfile.height && !heightVal) setHeightVal(String(userProfile.height));
+              if (userProfile.origin && !originVal) setOriginVal(userProfile.origin);
+            }
+            setIsFormModalVisible(true);
+          }
+        },
+        { text: "Annuler", style: "cancel" }
+      ]
+    );
   };
 
   const handleProceedToScan = () => {
@@ -481,7 +497,7 @@ export default function HomeScreen() {
                             {fav.style_keywords?.join(', ') || 'Style Sans Titre'}
                           </Text>
                           <Text style={styles.favItemDate}>
-                            Sauvegardé le {new Date(fav.savedAt || Date.now()).toLocaleDateString('fr-FR')}
+                            Sauvegardé le {new Date(fav.savedAt || Date.now()).toLocaleDateString('fr-FR')}{fav.transcript ? ' • 🎙️ Assistant' : ''}
                           </Text>
                         </View>
                         <Pressable style={styles.favDeleteBtn} onPress={() => handleDeleteFavorite(fav)}>

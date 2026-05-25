@@ -35,6 +35,18 @@ export class CheckinsController {
     return this.checkinsService.createVisualCheckIn(userId, body);
   }
 
+  @Post('voice-checkin')
+  async createVoiceCheckIn(
+    @Request() req,
+    @Body() body: { base64Audio: string, mimeType: string }
+  ) {
+    if (!body.base64Audio || !body.mimeType) {
+      throw new HttpException('Données audio manquantes.', HttpStatus.BAD_REQUEST);
+    }
+    const userId = req.user.userId;
+    return this.checkinsService.createVoiceCheckIn(userId, body);
+  }
+
   @Get('streak')
   async getStreak(@Request() req) {
     const userId = req.user.userId;

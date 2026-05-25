@@ -42,14 +42,16 @@ model ProfilePreference {
 }
 
 model DailyCheckIn {
-  id            Int      @id @default(autoincrement())
-  userId        Int
-  checkinDate   DateTime @default(now()) @db.Date
-  moodDetected  String
-  moodSelected  String
-  answers       Json
-  imageUrl      String?
-  createdAt     DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  checkinDate    DateTime @default(now()) @db.Date
+  moodDetected   String
+  moodSelected   String
+  answers        Json
+  imageUrl       String?
+  transcript     String?
+  aiVoiceMessage String?
+  createdAt      DateTime @default(now())
 
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   recommendations Recommendation[]
