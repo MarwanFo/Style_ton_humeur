@@ -507,9 +507,22 @@ export class CheckinsService {
   }
 
   async getUserBadges(userId: number) {
-    return this.prisma.userBadge.findMany({
+    await this.seedBadgesIfNeeded(this.prisma);
+    const allBadges = await this.prisma.badge.findMany();
+    const userBadges = await this.prisma.userBadge.findMany({
       where: { userId },
-      include: { badge: true },
+    });
+    return allBadges.map(badge => {
+      const ub = userBadges.find(u => u.badgeId === badge.id);
+      return {
+        id: badge.id,
+        code: badge.code,
+        name: badge.name,
+        description: badge.description,
+        criteria: badge.criteria,
+        progress: ub ? ub.progress : 0,
+        unlockedAt: ub ? ub.unlockedAt : null,
+      };
     });
   }
 }

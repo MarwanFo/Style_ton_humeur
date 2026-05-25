@@ -24,6 +24,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const [user, setUser] = useState<any>(null);
   const [streak, setStreak] = useState<any>(null);
+  const [badges, setBadges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { notificationsEnabled, toggleNotifications } = useNotifications();
 
@@ -51,6 +52,19 @@ export default function ProfileScreen() {
         if (response.ok) {
           const streakData = await response.json();
           setStreak(streakData);
+        }
+
+        // Fetch badges from backend
+        const badgesResponse = await fetch(`${API_URL}/checkins/badges`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (badgesResponse.ok) {
+          const badgesData = await badgesResponse.json();
+          setBadges(badgesData);
         }
       } catch (err) {
         // Fallback to local offline state if network is unreachable
@@ -118,6 +132,19 @@ export default function ProfileScreen() {
     );
   };
 
+  const getBadgeEmoji = (code: string) => {
+    switch (code) {
+      case 'FIRST_CHECKIN':
+        return '🌱';
+      case 'STREAK_3':
+        return '🔥';
+      case 'STREAK_7':
+        return '👑';
+      default:
+        return '⭐';
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -167,12 +194,12 @@ export default function ProfileScreen() {
         <View style={styles.metricsRow}>
           <View style={styles.metricCard}>
             <MaterialCommunityIcons name="fire" size={24} color="#FF8E53" />
-            <Text style={styles.metricValue}>{streak?.currentStreak || 12} jours</Text>
+            <Text style={styles.metricValue}>{streak !== null ? streak.currentStreak : 0} jours</Text>
             <Text style={styles.metricLabel}>Série Active</Text>
           </View>
           <View style={styles.metricCard}>
             <MaterialCommunityIcons name="trophy" size={24} color="#FFD700" />
-            <Text style={styles.metricValue}>{streak?.maxStreak || 15} jours</Text>
+            <Text style={styles.metricValue}>{streak !== null ? streak.maxStreak : 0} jours</Text>
             <Text style={styles.metricLabel}>Record Historique</Text>
           </View>
         </View>
@@ -182,31 +209,31 @@ export default function ProfileScreen() {
         <View style={styles.glassWrapper}>
           <BlurView intensity={50} tint="light" style={styles.glassCard}>
             <View style={styles.badgeGrid}>
-              
-              <View style={styles.badgeItem}>
-                <View style={styles.badgeIconFrame}>
-                  <Text style={styles.badgeEmoji}>🌱</Text>
-                </View>
-                <Text style={styles.badgeName}>Premier Pas</Text>
-                <Text style={styles.badgeStatus}>Obtenu</Text>
-              </View>
-
-              <View style={styles.badgeItem}>
-                <View style={styles.badgeIconFrame}>
-                  <Text style={styles.badgeEmoji}>🔥</Text>
-                </View>
-                <Text style={styles.badgeName}>Sérieux (Streak 3)</Text>
-                <Text style={styles.badgeStatus}>Obtenu</Text>
-              </View>
-
-              <View style={styles.badgeItem}>
-                <View style={[styles.badgeIconFrame, styles.badgeIconFrameLocked]}>
-                  <Text style={styles.badgeEmojiLocked}>👑</Text>
-                </View>
-                <Text style={styles.badgeNameLocked}>Styliste Élite</Text>
-                <Text style={styles.badgeStatusLocked}>Verrouillé</Text>
-              </View>
-
+              {badges.length > 0 ? (
+                badges.map((badgeItem: any) => {
+                  const isUnlocked = badgeItem.unlockedAt !== null;
+                  return (
+                    <View key={badgeItem.id} style={styles.badgeItem}>
+                      <View style={[
+                        styles.badgeIconFrame, 
+                        !isUnlocked && styles.badgeIconFrameLocked
+                      ]}>
+                        <Text style={isUnlocked ? styles.badgeEmoji : styles.badgeEmojiLocked}>
+                          {getBadgeEmoji(badgeItem.code)}
+                        </Text>
+                      </View>
+                      <Text style={isUnlocked ? styles.badgeName : styles.badgeNameLocked}>
+                        {badgeItem.name}
+                      </Text>
+                      <Text style={isUnlocked ? styles.badgeStatus : styles.badgeStatusLocked}>
+                        {isUnlocked ? 'Obtenu' : 'Verrouillé'}
+                      </Text>
+                    </View>
+                  );
+                })
+              ) : (
+                <Text style={styles.emptyBadgesText}>Aucun badge disponible</Text>
+              )}
             </View>
           </BlurView>
         </View>
@@ -482,5 +509,13 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(0,0,0,0.04)',
     marginHorizontal: 16,
+  },
+  emptyBadgesText: {
+    fontSize: 12,
+    color: '#8A8A9E',
+    fontWeight: '500',
+    textAlign: 'center',
+    width: '100%',
+    paddingVertical: 10,
   },
 });
