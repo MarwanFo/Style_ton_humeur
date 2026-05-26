@@ -58,7 +58,7 @@ export class CheckinsService {
     const moodDetected = aiResult.detected_mood || 'calme';
     const moodSelected = data.moodSelected || moodDetected;
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const checkin = await tx.dailyCheckIn.create({
         data: {
           userId,
@@ -188,7 +188,7 @@ export class CheckinsService {
     const moodDetected = aiResult.detected_mood || 'confiant';
     const moodSelected = moodDetected;
 
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const checkin = await tx.dailyCheckIn.create({
         data: {
           userId,
