@@ -1,16 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private openai: OpenAI;
+  private genAI: GoogleGenerativeAI;
 
   constructor() {
     this.openai = new OpenAI({
       apiKey: process.env.NVIDIA_API_KEY || 'DUMMY_KEY',
       baseURL: 'https://integrate.api.nvidia.com/v1',
     });
+    // Initialize Gemini (Free Tier API)
+    this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'DUMMY_KEY');
   }
 
   async getRecommendations(
@@ -129,6 +133,98 @@ Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun te
       this.logger.error("Erreur lors de l'analyse visuelle avec Nvidia Llama", error);
       return this.getFallbackRecommendation();
     }
+  }
+
+  async analyzeSentiment(
+    base64Image: string,
+    mimeType: string,
+    userProfile: { gender: string; age: number; displayName?: string },
+    moodSelected?: string,
+  ): Promise<any> {
+    try {
+      const moodContext = moodSelected
+        ? `L'utilisateur a pré-sélectionné son humeur comme : "${moodSelected}". Adapte-toi subtilement à cette indication.`
+        : `Aucun mood pré-sélectionné. Base-toi uniquement sur les micro-expressions.`;
+
+      const prompt = `
+Tu es un expert en psychologie cognitive, en micro-expressions faciales et en analyse d'affect par IA, intégré au module "Sentiments" de l'application Aura Studio. Ton rôle est d'analyser le selfie fourni pour décoder l'état émotionnel actuel de l'utilisateur.
+
+Profil de l'utilisateur : ${userProfile.gender}, ${userProfile.age} ans, prénom : ${userProfile.displayName || 'Utilisateur'}.
+${moodContext}
+
+Référentiel des Sentiments (Ta matrice de détection) :
+1. États Positifs & Énergie : Joie/Enthousiasme, Rayonnant, Fierté/Confiance.
+2. États Calmes & Focus : Sérénité/Paix, Concentration/Focus, Pensif/Méditatif.
+3. États de Fatigue & Stress : Fatigue/Épuisement, Stress/Anxiété, Ennui/Lassitude.
+4. Émotions Spontanées : Surprise/Étonnement, Confusion/Hésitation.
+
+Directives :
+1. Examine attentivement les indicateurs faciaux : position des sourcils, tension des yeux, orientation des lèvres, inclinaison de la tête.
+2. Avant de répondre, vérifie que ton diagnostic n'est pas trop générique. Ajuste les pourcentages précisément.
+
+Tu dois renvoyer STRICTEMENT un JSON valide (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut) respectant cette structure :
+{
+  "is_face_valid": true,
+  "error_alert": null,
+  "dominant_emotion": "Sérénité",
+  "verdict": "Phrase percutante résumant l'ambiance du visage (en français, chaleureuse et moderne)",
+  "indicators": [
+    { "label": "Sérénité", "percentage": 70 },
+    { "label": "Focus", "percentage": 30 }
+  ],
+  "facial_reading": "Explication brève et poétique de ce que les traits racontent (2-3 lignes max)",
+  "conseil_aura": "Conseil actionnable et positif en phase avec l'état détecté (2-3 lignes max)"
+}
+
+RÈGLES CRUCIALES :
+- Si la photo ne contient PAS de visage humain clairement visible, mets "is_face_valid": false et "error_alert": "Message d'erreur sympa demandant un selfie avec visage visible". Laisse les autres champs vides ou null.
+- "indicators" doit contenir entre 2 et 4 éléments dont les pourcentages totalisent 100%.
+- Reste toujours positif, empathique et validant. Ne pose jamais de diagnostic médical.
+- Formule TOUT en français.`;
+
+      // Use Google Gemini API (Free tier)
+      const model = this.genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: "application/json",
+        }
+      });
+
+      const imagePart = {
+        inlineData: {
+          data: base64Image,
+          mimeType: mimeType || 'image/jpeg'
+        }
+      };
+
+      const response = await model.generateContent([prompt, imagePart]);
+      const text = response.response.text();
+      
+      this.logger.log(`[Gemini Sentiment Response]: ${text}`);
+
+      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      return JSON.parse(cleanedText);
+    } catch (error) {
+      this.logger.error("Erreur lors de l'analyse sentimentale avec Nvidia Llama", error);
+      return this.getFallbackSentiment();
+    }
+  }
+
+  private getFallbackSentiment() {
+    return {
+      is_face_valid: true,
+      error_alert: null,
+      dominant_emotion: 'Sérénité',
+      verdict: 'Je détecte une belle énergie sereine aujourd\'hui !',
+      indicators: [
+        { label: 'Sérénité', percentage: 65 },
+        { label: 'Focus', percentage: 25 },
+        { label: 'Confiance', percentage: 10 },
+      ],
+      facial_reading: 'Vos traits reflètent un calme intérieur apaisant. La détente de vos sourcils et la douceur de vos lèvres traduisent une harmonie sereine.',
+      conseil_aura: 'Profitez de cette clarté d\'esprit pour avancer sur vos projets importants. N\'oubliez pas de vous accorder une vraie pause pour prolonger cette belle énergie.',
+    };
   }
 
   private getFallbackRecommendation() {

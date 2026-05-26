@@ -79,6 +79,8 @@ function RootLayoutNav() {
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="questionnaire" options={{ headerShown: false }} />
         <Stack.Screen name="style-analysis" options={{ headerShown: false }} />
+        <Stack.Screen name="sentiments" options={{ headerShown: false }} />
+        <Stack.Screen name="fitting-room" options={{ headerShown: false }} />
         <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
       </Stack>
     </ThemeProvider>

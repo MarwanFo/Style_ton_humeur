@@ -329,7 +329,7 @@ export default function HomeScreen() {
             </Pressable>
 
             {/* FEATURE 2: HUMEUR */}
-            <Pressable style={styles.cardWrapper} onPress={() => Alert.alert('Bientôt disponible', "En développement par l'équipe Sentiments.")}>
+            <Pressable style={styles.cardWrapper} onPress={() => router.push('/sentiments')}>
               <LinearGradient colors={['#FF6B6B', '#FF8E53']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <View style={[styles.iconFrame, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
