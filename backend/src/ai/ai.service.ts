@@ -96,12 +96,13 @@ ${heightContext}
 ${originContext}
 
 CRITICAL RULE / RÈGLE CRUCIALE :
-Tu dois vérifier si la photo montre le CORPS ENTIER de la personne (de la tête aux pieds).
-- Si la photo est un SELFIE (visage uniquement), un portrait serré, une photo coupée à la taille ou au buste, ou si on ne voit pas les jambes et les pieds de la personne, la photo est INVALIDE.
-- Si la photo est INVALIDE, tu dois obligatoirement mettre "is_full_body_valid": false dans le JSON, et écrire un message d'alerte sympa dans "error_alert" demandant une photo en pied. Ne génère pas de conseils de style si la photo est invalide.
-- Si la photo est valide (corps entier visible de la tête aux pieds), mets "is_full_body_valid": true, "error_alert": null, et réalise l'analyse complète.
+Tu dois vérifier si la photo montre la tenue (outfit) de la personne pour pouvoir l'analyser.
+- Si la photo est un simple SELFIE serré (visage uniquement) ou un portrait serré du buste où on ne voit aucun vêtement significatif, la photo est INVALIDE.
+- Si la photo montre la tenue de l'utilisateur (le haut et au moins une partie du bas/pantalon/jupe, même si la photo est prise dans un miroir ou si les pieds/chaussures ne sont pas visibles), la photo est VALIDE.
+- Si la photo est INVALIDE, tu dois obligatoirement mettre "is_full_body_valid": false dans le JSON, et écrire un message d'alerte sympa dans "error_alert" demandant une photo de sa tenue. Ne génère pas de conseils de style si la photo est invalide.
+- Si la photo est valide, mets "is_full_body_valid": true, "error_alert": null, et réalise l'analyse complète.
 
-Tu devez renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut).
+Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut).
 Règles importantes pour le JSON :
 1. Génère exactement 3 tenues dans "outfits" si la photo est valide, sinon un tableau vide [].
 2. Ne mets pas de commentaires dans le JSON.

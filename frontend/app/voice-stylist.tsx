@@ -236,10 +236,17 @@ export default function VoiceStylistScreen() {
 
   const speakResponse = (text: string) => {
     setIsSpeaking(true);
+    startAnimateWave();
     Speech.speak(text, {
       language: 'fr-FR',
-      onDone: () => setIsSpeaking(false),
-      onError: () => setIsSpeaking(false),
+      onDone: () => {
+        setIsSpeaking(false);
+        stopAnimateWave();
+      },
+      onError: () => {
+        setIsSpeaking(false);
+        stopAnimateWave();
+      },
     });
   };
 
@@ -247,6 +254,7 @@ export default function VoiceStylistScreen() {
     if (isSpeaking) {
       Speech.stop();
       setIsSpeaking(false);
+      stopAnimateWave();
     } else if (aiVoiceMessage) {
       speakResponse(aiVoiceMessage);
     }
@@ -296,15 +304,15 @@ export default function VoiceStylistScreen() {
 
           {/* AUDIO WAVE VISUALIZATION */}
           <View style={styles.waveContainer}>
-            {isRecording ? (
+            {isRecording || isSpeaking ? (
               <View style={styles.waveRow}>
-                <Animated.View style={[styles.waveBar, waveAnimStyle1]} />
-                <Animated.View style={[styles.waveBar, waveAnimStyle2]} />
-                <Animated.View style={[styles.waveBar, waveAnimStyle3]} />
-                <Animated.View style={[styles.waveBar, waveAnimStyle4]} />
-                <Animated.View style={[styles.waveBar, waveAnimStyle3]} />
-                <Animated.View style={[styles.waveBar, waveAnimStyle2]} />
-                <Animated.View style={[styles.waveBar, waveAnimStyle1]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle1]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle2]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle3]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle4]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle3]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle2]} />
+                <Animated.View style={[styles.waveBar, isSpeaking && styles.waveBarSpeaking, waveAnimStyle1]} />
               </View>
             ) : (
               <View style={styles.idleWave}>
@@ -313,6 +321,9 @@ export default function VoiceStylistScreen() {
             )}
             {isRecording && (
               <Text style={styles.durationText}>{formatDuration(recordDuration)}</Text>
+            )}
+            {isSpeaking && (
+              <Text style={[styles.durationText, { color: '#10B981' }]}>L'assistant parle...</Text>
             )}
           </View>
 
@@ -501,6 +512,9 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     backgroundColor: '#8B5CF6',
     marginHorizontal: 3,
+  },
+  waveBarSpeaking: {
+    backgroundColor: '#10B981',
   },
   idleWave: {
     width: 80,
