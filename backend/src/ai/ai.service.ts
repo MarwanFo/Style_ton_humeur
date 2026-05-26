@@ -102,16 +102,15 @@ Tu dois vérifier si la photo montre la tenue (outfit) de la personne pour pouvo
 - Si la photo est INVALIDE, tu dois obligatoirement mettre "is_full_body_valid": false dans le JSON, et écrire un message d'alerte sympa dans "error_alert" demandant une photo de sa tenue. Ne génère pas de conseils de style si la photo est invalide.
 - Si la photo est valide, mets "is_full_body_valid": true, "error_alert": null, et réalise l'analyse complète.
 
-Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut).
+Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (aucun texte d'explication en dehors du JSON, juste le JSON brut).
 Règles importantes pour le JSON :
 1. Génère exactement 3 tenues dans "outfits" si la photo est valide, sinon un tableau vide [].
 2. Ne mets pas de commentaires dans le JSON.
-3. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
 
 Structure attendue :
 {
-  "is_full_body_valid": false,
-  "error_alert": "Message d'erreur si la photo est invalide, sinon null",
+  "is_full_body_valid": boolean,
+  "error_alert": "Message d'erreur si la photo est invalide ou null",
   "detected_mood": "calme|confiant|joyeux|stressé|mélancolique|énergique",
   "style_keywords": ["mot1", "mot2"],
   "outfits": [
@@ -123,30 +122,28 @@ Structure attendue :
   ]
 }`;
 
-      const response = await this.openai.chat.completions.create({
-        model: 'meta/llama-3.2-11b-vision-instruct',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: prompt },
-              {
-                type: 'image_url',
-                image_url: {
-                  url: `data:${mimeType};base64,${base64Image}`,
-                },
-              },
-            ],
-          },
-        ],
-        temperature: 0.2,
-        max_tokens: 1000,
+      const model = this.genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: "application/json",
+        }
       });
 
-      const text = response.choices[0].message?.content || '{}';
-      this.logger.log(`[Llama Vision Response]: ${text}`);
+      const imagePart = {
+        inlineData: {
+          data: base64Image,
+          mimeType: mimeType || 'image/jpeg'
+        }
+      };
 
-      const result = this.parseLlamaJson(text);
+      const response = await model.generateContent([prompt, imagePart]);
+      const text = response.response.text();
+      
+      this.logger.log(`[Gemini Vision Response]: ${text}`);
+
+      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const result = JSON.parse(cleanedText);
       
       result.makeup = [
         { title: "Routine Légère (Journée)", steps: ["Crème hydratante protectrice", "Baume à lèvres neutre"] },
@@ -158,7 +155,7 @@ Structure attendue :
       
       return result;
     } catch (error) {
-      this.logger.error("Erreur lors de l'analyse visuelle avec Nvidia Llama", error);
+      this.logger.error("Erreur lors de l'analyse visuelle avec Gemini", error);
       return this.getFallbackRecommendation();
     }
   }
@@ -168,38 +165,29 @@ Structure attendue :
    */
   async transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
     try {
-      this.logger.log('Starting speech transcription with Hugging Face Whisper Large v3...');
-      const { client, handle_file } = require('@gradio/client');
-      const fs = require('fs');
-      const path = require('path');
-      const os = require('os');
-
-      const tempDir = os.tmpdir();
-      // Extract extension from mimeType (ex: "audio/m4a" -> "m4a")
-      const ext = mimeType.split('/')[1]?.split(';')[0] || 'm4a';
-      const tempFilePath = path.join(tempDir, `voice_checkin_${Date.now()}.${ext}`);
-
-      // Decode base64 to buffer
-      const audioBuffer = Buffer.from(base64Audio, 'base64');
-      fs.writeFileSync(tempFilePath, audioBuffer);
-
-      this.logger.log(`Temporary audio file written to: ${tempFilePath}`);
-
-      // Call Hugging Face space for Whisper transcription
-      const app = await client("nckandrw/whisper-app");
-      const result = await app.predict(2, [
-        handle_file(tempFilePath),
-        'Transcribe (Keep Language)'
-      ]);
-
-      // Clean up temp file
-      if (fs.existsSync(tempFilePath)) {
-        fs.unlinkSync(tempFilePath);
+      this.logger.log('Starting speech transcription with Gemini 1.5 Flash...');
+      
+      const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      let cleanedMimeType = mimeType;
+      if (mimeType.includes('m4a')) {
+        cleanedMimeType = 'audio/m4a';
       }
 
-      let transcription = (result.data && result.data[0]) || '';
+      const audioPart = {
+        inlineData: {
+          data: base64Audio,
+          mimeType: cleanedMimeType
+        }
+      };
+
+      const response = await model.generateContent([
+        "Transcris exactement et uniquement les paroles de cet enregistrement audio en français. Ne fais aucun commentaire personnel, n'ajoute pas de salutations ni d'introduction. Rends uniquement le texte dit dans l'audio. Si l'enregistrement contient du silence ou aucun mot intelligible, renvoie une chaîne vide.",
+        audioPart
+      ]);
       
-      // Clean up common Whisper silence hallucinations
+      let transcription = response.response.text() || '';
+      
       const cleanTranscription = transcription.trim().replace(/^["'\s\[\]\\]+|["'\s\[\]\\]+$/g, '');
       const hallucinations = [
         /thanks for watching/i,
@@ -231,7 +219,7 @@ Structure attendue :
 
       return transcription;
     } catch (error) {
-      this.logger.error('Error during audio transcription', error);
+      this.logger.error('Error during audio transcription with Gemini', error);
       throw new Error('Failed to transcribe audio.');
     }
   }
