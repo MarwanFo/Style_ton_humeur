@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, StatusBar, ActivityIndicator, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StatusBar, ActivityIndicator, Alert, Dimensions, Image, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -14,12 +14,13 @@ import Animated, {
   cancelAnimation
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, Stack } from 'expo-router';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Speech from 'expo-speech';
+import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { API_URL } from '@/constants/Api';
+import { API_URL } from '../constants/Api';
 
 const { width } = Dimensions.get('window');
 
@@ -37,7 +38,14 @@ export default function VoiceStylistScreen() {
   // Assistant Responses & Speech State
   const [lastTranscript, setLastTranscript] = useState<string>('');
   const [aiVoiceMessage, setAiVoiceMessage] = useState<string>('');
+  const [aiVoiceMessageUrl, setAiVoiceMessageUrl] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+
+  // Photo attachment states
+  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const [checkinId, setCheckinId] = useState<number | null>(null);
 
   // Animation values
   const pulseScale = useSharedValue(1);
@@ -51,12 +59,17 @@ export default function VoiceStylistScreen() {
     // Request microphone permissions on load
     const reqPermission = async () => {
       await Audio.requestPermissionsAsync();
+      await ImagePicker.requestCameraPermissionsAsync();
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
     };
     reqPermission();
 
     return () => {
-      // Clean up speech and intervals on unmount
+      // Clean up speech, audio playback and intervals on unmount
       Speech.stop();
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
       if (durationInterval.current) clearInterval(durationInterval.current);
     };
   }, []);
@@ -217,13 +230,18 @@ export default function VoiceStylistScreen() {
       
       setLastTranscript(data.transcript || '');
       setAiVoiceMessage(data.aiVoiceMessage || '');
+      setAiVoiceMessageUrl(data.aiVoiceMessageUrl || null);
+      setCheckinId(data.checkin?.id || null);
+      setPhotoUri(null);
 
       // Store recommendations & check-in data locally
       await AsyncStorage.setItem('latestRecommendation', JSON.stringify(data.recommendation));
       await AsyncStorage.setItem('latestCheckin', JSON.stringify(data.checkin));
 
       // Auto play the AI spoken voice reply
-      if (data.aiVoiceMessage) {
+      if (data.aiVoiceMessageUrl) {
+        playAudioUrl(data.aiVoiceMessageUrl);
+      } else if (data.aiVoiceMessage) {
         speakResponse(data.aiVoiceMessage);
       }
     } catch (err: any) {
@@ -232,6 +250,51 @@ export default function VoiceStylistScreen() {
     } finally {
       setIsProcessing(false);
     }
+  };
+
+  const playAudioUrl = async (url: string) => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+      setIsSpeaking(true);
+      startAnimateWave();
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsSpeaking(false);
+          stopAnimateWave();
+        }
+      });
+    } catch (err) {
+      console.error("Failed to play neural voice audio", err);
+      if (aiVoiceMessage) {
+        speakResponse(aiVoiceMessage);
+      } else {
+        setIsSpeaking(false);
+        stopAnimateWave();
+      }
+    }
+  };
+
+  const stopSpeaking = async () => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync().catch(() => {});
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+      Speech.stop();
+    } catch (e) {}
+    setIsSpeaking(false);
+    stopAnimateWave();
   };
 
   const speakResponse = (text: string) => {
@@ -252,11 +315,100 @@ export default function VoiceStylistScreen() {
 
   const toggleSpeech = () => {
     if (isSpeaking) {
-      Speech.stop();
-      setIsSpeaking(false);
-      stopAnimateWave();
+      stopSpeaking();
+    } else if (aiVoiceMessageUrl) {
+      playAudioUrl(aiVoiceMessageUrl);
     } else if (aiVoiceMessage) {
       speakResponse(aiVoiceMessage);
+    }
+  };
+
+  const handleUploadPhoto = async () => {
+    if (!checkinId) {
+      Alert.alert("Erreur", "Session de check-in introuvable.");
+      return;
+    }
+
+    Alert.alert(
+      "Silhouette & Fitting Room",
+      "Prendre une photo de votre silhouette complète ou choisir dans la galerie :",
+      [
+        { text: "Appareil Photo", onPress: () => launchImagePicker(true) },
+        { text: "Galerie", onPress: () => launchImagePicker(false) },
+        { text: "Annuler", style: "cancel" }
+      ]
+    );
+  };
+
+  const launchImagePicker = async (isCamera: boolean) => {
+    try {
+      const options: ImagePicker.ImagePickerOptions = {
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [3, 4],
+        quality: 0.6,
+        base64: true,
+      };
+
+      const result = isCamera 
+        ? await ImagePicker.launchCameraAsync(options) 
+        : await ImagePicker.launchImageLibraryAsync(options);
+        
+      if (result.canceled || !result.assets || result.assets.length === 0) return;
+
+      const asset = result.assets[0];
+      if (!asset.base64) return;
+
+      setIsUploadingPhoto(true);
+      const token = await AsyncStorage.getItem('token');
+      if (!token) {
+        setIsUploadingPhoto(false);
+        router.push('/auth');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/checkins/add-photo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          checkinId: checkinId,
+          base64Image: asset.base64,
+          mimeType: asset.mimeType || 'image/jpeg',
+        }),
+      });
+
+      const resData = await response.json();
+      setIsUploadingPhoto(false);
+
+      if (!response.ok) {
+        Alert.alert("Erreur", resData.message || "Impossible d'importer la photo.");
+        return;
+      }
+
+      setPhotoUri(resData.imageUrl);
+      
+      // Update AsyncStorage to make photo available in fitting room
+      const latestCheckinStr = await AsyncStorage.getItem('latestCheckin');
+      if (latestCheckinStr) {
+        const latestCheckin = JSON.parse(latestCheckinStr);
+        latestCheckin.imageUrl = resData.imageUrl;
+        await AsyncStorage.setItem('latestCheckin', JSON.stringify(latestCheckin));
+      }
+      
+      const latestRecoStr = await AsyncStorage.getItem('latestRecommendation');
+      if (latestRecoStr) {
+        const latestReco = JSON.parse(latestRecoStr);
+        latestReco.imageUrl = resData.imageUrl;
+        await AsyncStorage.setItem('latestRecommendation', JSON.stringify(latestReco));
+      }
+
+      Alert.alert("Photo Ajoutée !", "Votre silhouette est enregistrée. Elle sera affichée dans le miroir d'essayage.");
+    } catch (err) {
+      setIsUploadingPhoto(false);
+      Alert.alert("Erreur", "Une anomalie s'est produite lors de l'import de la photo.");
     }
   };
 
@@ -266,7 +418,8 @@ export default function VoiceStylistScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+      <Stack.Screen options={{ headerShown: false }} />
+      <StatusBar barStyle="light-content" />
       
       {/* Ambient Premium Gradient Background */}
       <View style={StyleSheet.absoluteFill}>
@@ -280,7 +433,7 @@ export default function VoiceStylistScreen() {
         <View style={styles.orbBottomLeft} />
       </View>
 
-      <View style={[styles.content, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
+      <View style={[styles.content, { paddingTop: insets.top + 12, paddingBottom: 0, flex: 1 }]}>
         
         {/* HEADER */}
         <Animated.View entering={FadeInUp.duration(800).springify()} style={styles.header}>
@@ -292,7 +445,11 @@ export default function VoiceStylistScreen() {
         </Animated.View>
 
         {/* MAIN BODY */}
-        <View style={styles.mainContainer}>
+        <ScrollView 
+          style={styles.scrollView} 
+          contentContainerStyle={styles.mainContainer} 
+          showsVerticalScrollIndicator={false}
+        >
           
           {/* TITLE & DESCRIPTION */}
           <Animated.View entering={FadeInDown.delay(100).duration(800).springify()} style={styles.introBox}>
@@ -368,6 +525,44 @@ export default function VoiceStylistScreen() {
             </Animated.View>
           )}
 
+          {/* PHOTO UPLOAD CARD */}
+          {lastTranscript && !isProcessing && (
+            <Animated.View entering={FadeInDown.delay(100).duration(600)} style={styles.photoUploadCard}>
+              <BlurView intensity={25} tint="dark" style={styles.photoUploadBlur}>
+                <View style={styles.photoUploadHeader}>
+                  <Ionicons name="camera" size={20} color="#EC4899" />
+                  <Text style={styles.photoUploadTitle}>
+                    {photoUri ? "Silhouette Enregistrée ! ✨" : "Ajustement Cabine (Optionnel) 👗"}
+                  </Text>
+                </View>
+                <Text style={styles.photoUploadText}>
+                  {photoUri 
+                    ? "Votre photo de silhouette a bien été liée à cette analyse. Vous pourrez l'essayer virtuellement !"
+                    : "Prenez ou importez une photo complète de votre silhouette pour essayer virtuellement les looks suggérés."}
+                </Text>
+                {isUploadingPhoto ? (
+                  <View style={styles.uploadingBox}>
+                    <ActivityIndicator size="small" color="#EC4899" style={{ marginRight: 8 }} />
+                    <Text style={styles.uploadingText}>Téléversement de l'image...</Text>
+                  </View>
+                ) : photoUri ? (
+                  <View style={styles.photoAttachedContainer}>
+                    <Image source={{ uri: photoUri }} style={styles.attachedImagePreview} />
+                    <Pressable style={styles.changePhotoBtn} onPress={handleUploadPhoto}>
+                      <Ionicons name="create-outline" size={16} color="#FFF" style={{ marginRight: 4 }} />
+                      <Text style={styles.changePhotoText}>Changer de photo</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable style={styles.addPhotoActionBtn} onPress={handleUploadPhoto}>
+                    <Ionicons name="cloud-upload-outline" size={18} color="#FFF" style={{ marginRight: 6 }} />
+                    <Text style={styles.addPhotoActionText}>Ajouter ma photo silhouette</Text>
+                  </Pressable>
+                )}
+              </BlurView>
+            </Animated.View>
+          )}
+
           {/* BUTTON ACTIONS */}
           <View style={styles.actionsContainer}>
             {!lastTranscript && !isProcessing && (
@@ -416,7 +611,7 @@ export default function VoiceStylistScreen() {
             )}
           </View>
 
-        </View>
+        </ScrollView>
       </View>
     </View>
   );
@@ -424,6 +619,9 @@ export default function VoiceStylistScreen() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  scrollView: {
     flex: 1,
   },
   orbTopRight: {
@@ -473,7 +671,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
   mainContainer: {
-    flex: 1,
+    flexGrow: 1,
     justifyContent: 'space-between',
     paddingVertical: 12,
   },
@@ -689,5 +887,98 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 14,
     fontWeight: '800',
+  },
+  photoUploadCard: {
+    marginVertical: 10,
+    borderRadius: 24,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(236, 72, 153, 0.25)',
+    shadowColor: '#EC4899',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  photoUploadBlur: {
+    padding: 20,
+    backgroundColor: 'rgba(21, 16, 42, 0.6)',
+  },
+  photoUploadHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  photoUploadTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+    marginLeft: 8,
+    letterSpacing: 0.2,
+  },
+  photoUploadText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  uploadingBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 44,
+  },
+  uploadingText: {
+    color: '#EC4899',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  photoAttachedContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+    borderRadius: 16,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  attachedImagePreview: {
+    width: 48,
+    height: 64,
+    borderRadius: 8,
+    backgroundColor: '#374151',
+  },
+  changePhotoBtn: {
+    flex: 1,
+    marginLeft: 14,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  changePhotoText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  addPhotoActionBtn: {
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#EC4899',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    shadowColor: '#EC4899',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  addPhotoActionText: {
+    color: '#FFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
 });

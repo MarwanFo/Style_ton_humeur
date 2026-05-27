@@ -21,7 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { API_URL } from '@/constants/Api';
+import { API_URL } from '../constants/Api';
 
 const { width } = Dimensions.get('window');
 

@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from '../ai/ai.service';
 import { WeatherService } from '../weather/weather.service';
@@ -7,6 +7,8 @@ import { differenceInCalendarDays, isSameWeek } from 'date-fns';
 
 @Injectable()
 export class CheckinsService {
+  private readonly logger = new Logger(CheckinsService.name);
+
   constructor(
     private prisma: PrismaService,
     private aiService: AiService,
@@ -296,10 +298,12 @@ export class CheckinsService {
           moodSelected,
           answers: { 
             source: 'voice_checkin',
-            transcript: transcript
+            transcript: transcript,
+            aiVoiceMessageUrl: aiResult.ai_voice_message_url || null
           },
           transcript: transcript,
           aiVoiceMessage: aiResult.ai_voice_message,
+          imageUrl: null,
         },
       });
 
@@ -339,14 +343,57 @@ export class CheckinsService {
       const awardedBadges = await this.checkAndAwardBadges(tx, userId, updatedStreakState.currentStreak);
 
       return {
-        checkin,
-        recommendation,
+        checkin: {
+          ...checkin,
+          aiVoiceMessageUrl: aiResult.ai_voice_message_url || null
+        },
+        recommendation: {
+          ...recommendation,
+          style_keywords: aiResult.style_keywords,
+          detected_mood: moodDetected,
+          aiVoiceMessage: aiResult.ai_voice_message,
+          aiVoiceMessageUrl: aiResult.ai_voice_message_url || null,
+          transcript,
+        },
         streak: updatedStreakState,
         awardedBadges,
         transcript,
-        aiVoiceMessage: aiResult.ai_voice_message
+        aiVoiceMessage: aiResult.ai_voice_message,
+        aiVoiceMessageUrl: aiResult.ai_voice_message_url || null
       };
     });
+  }
+
+  async addPhotoToCheckIn(userId: number, checkinId: number, base64Image: string, mimeType: string) {
+    const checkin = await this.prisma.dailyCheckIn.findFirst({
+      where: { id: checkinId, userId },
+    });
+    if (!checkin) {
+      throw new NotFoundException('Check-in non trouvé');
+    }
+
+    let cloudinaryUrl: string | null = null;
+    try {
+      const mimePrefix = `data:${mimeType || 'image/jpeg'};base64,`;
+      const fullBase64 = base64Image.startsWith('data:')
+        ? base64Image
+        : `${mimePrefix}${base64Image}`;
+      cloudinaryUrl = await this.cloudinaryService.uploadImage(fullBase64, 'checkins');
+    } catch (error) {
+      this.logger.error('Error uploading photo to Cloudinary in addPhotoToCheckIn', error);
+      throw new BadRequestException('Erreur lors du téléchargement de l\'image.');
+    }
+
+    const updatedCheckin = await this.prisma.dailyCheckIn.update({
+      where: { id: checkinId },
+      data: { imageUrl: cloudinaryUrl },
+    });
+
+    return { 
+      success: true, 
+      imageUrl: cloudinaryUrl, 
+      checkin: updatedCheckin 
+    };
   }
 
   private calculateNewStreakState(

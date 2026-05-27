@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, Pressable, ActivityIndicator, StatusBar } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -9,6 +9,7 @@ import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Alert } from 'react-native';
 import * as Speech from 'expo-speech';
+import { Audio } from 'expo-av';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +23,8 @@ export default function StyleAnalysisScreen() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [activeOutfitIndex, setActiveOutfitIndex] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
+
+  const soundRef = useRef<Audio.Sound | null>(null);
 
   useEffect(() => {
     const loadRecommendationData = async () => {
@@ -51,13 +54,63 @@ export default function StyleAnalysisScreen() {
 
     return () => {
       Speech.stop();
+      if (soundRef.current) {
+        soundRef.current.unloadAsync().catch(() => {});
+      }
     };
   }, []);
 
+  const playAudioUrl = async (url: string) => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+      setIsSpeaking(true);
+
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: true }
+      );
+      soundRef.current = sound;
+      
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (status.isLoaded && status.didJustFinish) {
+          setIsSpeaking(false);
+        }
+      });
+    } catch (err) {
+      console.error("Failed to play neural voice audio", err);
+      if (recommendation?.aiVoiceMessage) {
+        setIsSpeaking(true);
+        Speech.speak(recommendation.aiVoiceMessage, {
+          language: 'fr-FR',
+          onDone: () => setIsSpeaking(false),
+          onError: () => setIsSpeaking(false),
+        });
+      } else {
+        setIsSpeaking(false);
+      }
+    }
+  };
+
+  const stopSpeaking = async () => {
+    try {
+      if (soundRef.current) {
+        await soundRef.current.stopAsync().catch(() => {});
+        await soundRef.current.unloadAsync().catch(() => {});
+        soundRef.current = null;
+      }
+      Speech.stop();
+    } catch (e) {}
+    setIsSpeaking(false);
+  };
+
   const toggleSpeech = () => {
     if (isSpeaking) {
-      Speech.stop();
-      setIsSpeaking(false);
+      stopSpeaking();
+    } else if (recommendation?.aiVoiceMessageUrl) {
+      playAudioUrl(recommendation.aiVoiceMessageUrl);
     } else if (recommendation?.aiVoiceMessage) {
       setIsSpeaking(true);
       Speech.speak(recommendation.aiVoiceMessage, {

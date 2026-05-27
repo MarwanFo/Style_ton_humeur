@@ -47,6 +47,18 @@ export class CheckinsController {
     return this.checkinsService.createVoiceCheckIn(userId, body);
   }
 
+  @Post('add-photo')
+  async addPhotoToCheckIn(
+    @Request() req,
+    @Body() body: { checkinId: number; base64Image: string; mimeType: string }
+  ) {
+    if (!body.checkinId || !body.base64Image) {
+      throw new HttpException('Données de l\'image manquantes.', HttpStatus.BAD_REQUEST);
+    }
+    const userId = req.user.userId;
+    return this.checkinsService.addPhotoToCheckIn(userId, body.checkinId, body.base64Image, body.mimeType);
+  }
+
   @Get('streak')
   async getStreak(@Request() req) {
     const userId = req.user.userId;

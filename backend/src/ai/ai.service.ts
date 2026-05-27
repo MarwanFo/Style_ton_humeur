@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import OpenAI from 'openai';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { CloudinaryService } from '../cloudinary/cloudinary.service';
 
 @Injectable()
 export class AiService {
@@ -8,7 +9,7 @@ export class AiService {
   private openai: OpenAI;
   private genAI: GoogleGenerativeAI;
 
-  constructor() {
+  constructor(private cloudinaryService: CloudinaryService) {
     this.openai = new OpenAI({
       apiKey: process.env.NVIDIA_API_KEY || 'DUMMY_KEY',
       baseURL: 'https://integrate.api.nvidia.com/v1',
@@ -123,7 +124,7 @@ Structure attendue :
 }`;
 
       const model = this.genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         generationConfig: {
           temperature: 0.3,
           responseMimeType: "application/json",
@@ -165,9 +166,9 @@ Structure attendue :
    */
   async transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
     try {
-      this.logger.log('Starting speech transcription with Gemini 1.5 Flash...');
+      this.logger.log('Starting speech transcription with Gemini 2.5 Flash...');
       
-      const model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
       
       let cleanedMimeType = mimeType;
       if (mimeType.includes('m4a')) {
@@ -283,14 +284,78 @@ Structure attendue :
       });
 
       const text = response.choices[0].message?.content || '{}';
-      return this.parseLlamaJson(text);
+      const parsed = this.parseLlamaJson(text);
+
+      if (parsed.ai_voice_message) {
+        try {
+          const audioUrl = await this.generateTts(parsed.ai_voice_message);
+          parsed.ai_voice_message_url = audioUrl;
+        } catch (ttsErr) {
+          this.logger.error('Failed to generate TTS audio in getVoiceRecommendations', ttsErr);
+        }
+      }
+
+      return parsed;
     } catch (error) {
       this.logger.error('Error during voice LLM analysis', error);
       const fallback = this.getFallbackRecommendation();
+      const message = "Désolé, j'ai eu un problème pour analyser votre message vocal. Voici tout de même une sélection de tenues confortables pour aujourd'hui !";
+      let audioUrl: string | null = null;
+      try {
+        audioUrl = await this.generateTts(message);
+      } catch (e) {}
       return {
         ...fallback,
-        ai_voice_message: "Désolé, j'ai eu un problème pour analyser votre message vocal. Voici tout de même une sélection de tenues confortables pour aujourd'hui !"
+        ai_voice_message: message,
+        ai_voice_message_url: audioUrl
       };
+    }
+  }
+
+  /**
+   * Generates premium neural Text-to-Speech audio and uploads to Cloudinary
+   */
+  async generateTts(text: string): Promise<string | null> {
+    try {
+      this.logger.log('Generating premium neural TTS voice with msedge-tts...');
+      const { MsEdgeTTS, OUTPUT_FORMAT } = require('msedge-tts');
+      const tts = new MsEdgeTTS();
+      
+      // Use fr-FR-DeniseNeural (highly realistic neural French voice)
+      await tts.setMetadata("fr-FR-DeniseNeural", OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3);
+      
+      const os = require('os');
+      const path = require('path');
+      const fs = require('fs');
+      
+      const tempDir = os.tmpdir();
+      const uniqueSubdir = path.join(tempDir, `tts_${Date.now()}_${Math.floor(Math.random() * 1000)}`);
+      fs.mkdirSync(uniqueSubdir, { recursive: true });
+      
+      const { audioFilePath } = await tts.toFile(uniqueSubdir, text);
+      
+      let cloudinaryUrl: string | null = null;
+      if (audioFilePath && fs.existsSync(audioFilePath)) {
+        const base64Audio = fs.readFileSync(audioFilePath, { encoding: 'base64' });
+        const mimePrefix = `data:audio/mp3;base64,`;
+        const fullBase64 = `${mimePrefix}${base64Audio}`;
+        
+        cloudinaryUrl = await this.cloudinaryService.uploadImage(fullBase64, 'tts_voices');
+        
+        fs.unlinkSync(audioFilePath);
+      }
+      
+      if (fs.existsSync(uniqueSubdir)) {
+        try {
+          fs.rmdirSync(uniqueSubdir);
+        } catch (e) {}
+      }
+      
+      this.logger.log(`Premium neural TTS voice generated and uploaded: ${cloudinaryUrl}`);
+      return cloudinaryUrl;
+    } catch (error) {
+      this.logger.error('Error generating premium neural TTS', error);
+      return null;
     }
   }
 
@@ -379,7 +444,7 @@ RÈGLES CRUCIALES :
 
       // Use Google Gemini API (Free tier)
       const model = this.genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash",
         generationConfig: {
           temperature: 0.3,
           responseMimeType: "application/json",

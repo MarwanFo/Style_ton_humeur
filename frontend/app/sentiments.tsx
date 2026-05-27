@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { API_URL } from '@/constants/Api';
+import { API_URL } from '../constants/Api';
 
 const { width } = Dimensions.get('window');
 
