@@ -21,6 +21,8 @@ model User {
   age                Int
   height             Int?
   origin             String?
+  twoFactorSecret    String?
+  twoFactorEnabled   Boolean             @default(false)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   

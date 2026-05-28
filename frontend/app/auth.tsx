@@ -27,6 +27,9 @@ export default function AuthScreen() {
   const router = useRouter();
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showTwoFactorInput, setShowTwoFactorInput] = useState(false);
+  const [twoFactorUserId, setTwoFactorUserId] = useState<number | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -62,6 +65,13 @@ export default function AuthScreen() {
           throw new Error(data.message || 'Identifiants incorrects.');
         }
 
+        if (data.isTwoFactorRequired) {
+          setTwoFactorUserId(data.userId);
+          setShowTwoFactorInput(true);
+          setLoading(false);
+          return;
+        }
+
         await AsyncStorage.setItem('token', data.access_token);
         await AsyncStorage.setItem('user', JSON.stringify(data.user));
 
@@ -90,6 +100,38 @@ export default function AuthScreen() {
       }
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTwoFactorVerify = async () => {
+    if (!twoFactorCode || twoFactorCode.length !== 6) {
+      Alert.alert('Erreur', 'Veuillez saisir le code à 6 chiffres.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/auth/2fa/login-verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: twoFactorUserId, code: twoFactorCode }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Code incorrect.');
+      }
+
+      await AsyncStorage.setItem('token', data.access_token);
+      await AsyncStorage.setItem('user', JSON.stringify(data.user));
+
+      router.replace('/(tabs)');
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Validation échouée.');
     } finally {
       setLoading(false);
     }
@@ -130,87 +172,104 @@ export default function AuthScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.glassWrapper}>
           <BlurView intensity={90} tint="light" style={styles.glassCard}>
             
-            {/* SEGMENT SELECTOR */}
-            <View style={styles.segmentContainer}>
-              <Pressable 
-                onPress={() => setIsLogin(true)}
-                style={[styles.segmentBtn, isLogin && styles.segmentBtnActive]}
-              >
-                <Text style={[styles.segmentText, isLogin && styles.segmentTextActive]}>Connexion</Text>
-              </Pressable>
-              <Pressable 
-                onPress={() => setIsLogin(false)}
-                style={[styles.segmentBtn, !isLogin && styles.segmentBtnActive]}
-              >
-                <Text style={[styles.segmentText, !isLogin && styles.segmentTextActive]}>Inscription</Text>
-              </Pressable>
-            </View>
+            {showTwoFactorInput ? (
+              <View style={styles.formContainer}>
+                <Text style={styles.twoFactorTitle}>🔑 Validation en deux étapes</Text>
+                <Text style={styles.twoFactorDesc}>
+                  Saisissez le code de validation à 6 chiffres généré par votre application d'authentification (Google Authenticator, Authy, etc.).
+                </Text>
 
-            {/* FORM FIELDS */}
-            <View style={styles.formContainer}>
-              
-              {!isLogin && (
                 <View style={styles.inputWrapper}>
-                  <Text style={styles.inputLabel}>Pseudo</Text>
+                  <Text style={styles.inputLabel}>Code de validation</Text>
                   <View style={styles.inputContainer}>
-                    <Feather name="user" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                    <Feather name="shield" size={18} color="#8B5CF6" style={styles.inputIcon} />
                     <TextInput 
-                      placeholder="Ex: Marwan" 
+                      placeholder="000000" 
                       placeholderTextColor="#9CA3AF"
-                      value={displayName}
-                      onChangeText={setDisplayName}
+                      keyboardType="numeric"
+                      maxLength={6}
+                      value={twoFactorCode}
+                      onChangeText={setTwoFactorCode}
                       style={styles.input}
                       selectionColor="#8B5CF6"
                     />
                   </View>
                 </View>
-              )}
 
-              <View style={styles.inputWrapper}>
-                <Text style={styles.inputLabel}>Email</Text>
-                <View style={styles.inputContainer}>
-                  <Feather name="mail" size={18} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput 
-                    placeholder="votre@email.com" 
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                    style={styles.input}
-                    selectionColor="#8B5CF6"
-                  />
-                </View>
+                <Pressable style={styles.actionBtn} onPress={handleTwoFactorVerify} disabled={loading}>
+                  <LinearGradient 
+                    colors={['#8B5CF6', '#EC4899']} 
+                    start={{ x: 0, y: 0 }} 
+                    end={{ x: 1, y: 1 }} 
+                    style={styles.actionGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#FFF" />
+                    ) : (
+                      <Text style={styles.actionText}>Valider</Text>
+                    )}
+                  </LinearGradient>
+                </Pressable>
+
+                <Pressable 
+                  onPress={() => {
+                    setShowTwoFactorInput(false);
+                    setTwoFactorCode('');
+                  }}
+                  style={styles.backBtn}
+                >
+                  <Text style={styles.backBtnText}>Retour à la connexion</Text>
+                </Pressable>
               </View>
-
-              <View style={styles.inputWrapper}>
-                <Text style={styles.inputLabel}>Mot de passe</Text>
-                <View style={styles.inputContainer}>
-                  <Feather name="lock" size={18} color="#8B5CF6" style={styles.inputIcon} />
-                  <TextInput 
-                    placeholder="••••••••" 
-                    placeholderTextColor="#9CA3AF"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={setPassword}
-                    style={styles.input}
-                    selectionColor="#8B5CF6"
-                  />
+            ) : (
+              <>
+                {/* SEGMENT SELECTOR */}
+                <View style={styles.segmentContainer}>
+                  <Pressable 
+                    onPress={() => setIsLogin(true)}
+                    style={[styles.segmentBtn, isLogin && styles.segmentBtnActive]}
+                  >
+                    <Text style={[styles.segmentText, isLogin && styles.segmentTextActive]}>Connexion</Text>
+                  </Pressable>
+                  <Pressable 
+                    onPress={() => setIsLogin(false)}
+                    style={[styles.segmentBtn, !isLogin && styles.segmentBtnActive]}
+                  >
+                    <Text style={[styles.segmentText, !isLogin && styles.segmentTextActive]}>Inscription</Text>
+                  </Pressable>
                 </View>
-              </View>
 
-              {!isLogin && (
-                <>
+                {/* FORM FIELDS */}
+                <View style={styles.formContainer}>
+                  
+                  {!isLogin && (
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.inputLabel}>Pseudo</Text>
+                      <View style={styles.inputContainer}>
+                        <Feather name="user" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                        <TextInput 
+                          placeholder="Ex: Marwan" 
+                          placeholderTextColor="#9CA3AF"
+                          value={displayName}
+                          onChangeText={setDisplayName}
+                          style={styles.input}
+                          selectionColor="#8B5CF6"
+                        />
+                      </View>
+                    </View>
+                  )}
+
                   <View style={styles.inputWrapper}>
-                    <Text style={styles.inputLabel}>Âge</Text>
+                    <Text style={styles.inputLabel}>Email</Text>
                     <View style={styles.inputContainer}>
-                      <Feather name="calendar" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                      <Feather name="mail" size={18} color="#8B5CF6" style={styles.inputIcon} />
                       <TextInput 
-                        placeholder="Ex: 25" 
+                        placeholder="votre@email.com" 
                         placeholderTextColor="#9CA3AF"
-                        keyboardType="numeric"
-                        value={age}
-                        onChangeText={setAge}
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                        value={email}
+                        onChangeText={setEmail}
                         style={styles.input}
                         selectionColor="#8B5CF6"
                       />
@@ -218,44 +277,80 @@ export default function AuthScreen() {
                   </View>
 
                   <View style={styles.inputWrapper}>
-                    <Text style={styles.inputLabel}>Genre</Text>
-                    <View style={styles.genderRow}>
-                      <Pressable 
-                        onPress={() => setGender('femme')}
-                        style={[styles.genderBtn, gender === 'femme' && styles.genderBtnActive]}
-                      >
-                        <Ionicons name="woman" size={16} color={gender === 'femme' ? '#FFF' : '#8B5CF6'} />
-                        <Text style={[styles.genderBtnText, gender === 'femme' && styles.genderBtnTextActive]}>Femme</Text>
-                      </Pressable>
-                      <Pressable 
-                        onPress={() => setGender('homme')}
-                        style={[styles.genderBtn, gender === 'homme' && styles.genderBtnActive]}
-                      >
-                        <Ionicons name="man" size={16} color={gender === 'homme' ? '#FFF' : '#8B5CF6'} />
-                        <Text style={[styles.genderBtnText, gender === 'homme' && styles.genderBtnTextActive]}>Homme</Text>
-                      </Pressable>
+                    <Text style={styles.inputLabel}>Mot de passe</Text>
+                    <View style={styles.inputContainer}>
+                      <Feather name="lock" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                      <TextInput 
+                        placeholder="••••••••" 
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry
+                        value={password}
+                        onChangeText={setPassword}
+                        style={styles.input}
+                        selectionColor="#8B5CF6"
+                      />
                     </View>
                   </View>
-                </>
-              )}
 
-              {/* ACTION CTA (Vibrant Purple/Pink Gradient) */}
-              <Pressable style={styles.actionBtn} onPress={handleAuth} disabled={loading}>
-                <LinearGradient 
-                  colors={['#8B5CF6', '#EC4899']} 
-                  start={{ x: 0, y: 0 }} 
-                  end={{ x: 1, y: 1 }} 
-                  style={styles.actionGradient}
-                >
-                  {loading ? (
-                    <ActivityIndicator size="small" color="#FFF" />
-                  ) : (
-                    <Text style={styles.actionText}>{isLogin ? 'Accéder' : 'Rejoindre'}</Text>
+                  {!isLogin && (
+                    <>
+                      <View style={styles.inputWrapper}>
+                        <Text style={styles.inputLabel}>Âge</Text>
+                        <View style={styles.inputContainer}>
+                          <Feather name="calendar" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                          <TextInput 
+                            placeholder="Ex: 25" 
+                            placeholderTextColor="#9CA3AF"
+                            keyboardType="numeric"
+                            value={age}
+                            onChangeText={setAge}
+                            style={styles.input}
+                            selectionColor="#8B5CF6"
+                          />
+                        </View>
+                      </View>
+
+                      <View style={styles.inputWrapper}>
+                        <Text style={styles.inputLabel}>Genre</Text>
+                        <View style={styles.genderRow}>
+                          <Pressable 
+                            onPress={() => setGender('femme')}
+                            style={[styles.genderBtn, gender === 'femme' && styles.genderBtnActive]}
+                          >
+                            <Ionicons name="woman" size={16} color={gender === 'femme' ? '#FFF' : '#8B5CF6'} />
+                            <Text style={[styles.genderBtnText, gender === 'femme' && styles.genderBtnTextActive]}>Femme</Text>
+                          </Pressable>
+                          <Pressable 
+                            onPress={() => setGender('homme')}
+                            style={[styles.genderBtn, gender === 'homme' && styles.genderBtnActive]}
+                          >
+                            <Ionicons name="man" size={16} color={gender === 'homme' ? '#FFF' : '#8B5CF6'} />
+                            <Text style={[styles.genderBtnText, gender === 'homme' && styles.genderBtnTextActive]}>Homme</Text>
+                          </Pressable>
+                        </View>
+                      </View>
+                    </>
                   )}
-                </LinearGradient>
-              </Pressable>
 
-            </View>
+                  {/* ACTION CTA (Vibrant Purple/Pink Gradient) */}
+                  <Pressable style={styles.actionBtn} onPress={handleAuth} disabled={loading}>
+                    <LinearGradient 
+                      colors={['#8B5CF6', '#EC4899']} 
+                      start={{ x: 0, y: 0 }} 
+                      end={{ x: 1, y: 1 }} 
+                      style={styles.actionGradient}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#FFF" />
+                      ) : (
+                        <Text style={styles.actionText}>{isLogin ? 'Accéder' : 'Rejoindre'}</Text>
+                      )}
+                    </LinearGradient>
+                  </Pressable>
+
+                </View>
+              </>
+            )}
           </BlurView>
         </Animated.View>
       </ScrollView>
@@ -453,5 +548,29 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 16,
     fontWeight: '700',
+  },
+  twoFactorTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  twoFactorDesc: {
+    fontSize: 13,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 18,
+    marginBottom: 16,
+  },
+  backBtn: {
+    alignItems: 'center',
+    marginTop: 8,
+    paddingVertical: 10,
+  },
+  backBtnText: {
+    fontSize: 14,
+    color: '#8B5CF6',
+    fontWeight: '600',
   },
 });

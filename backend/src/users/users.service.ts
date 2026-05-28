@@ -42,4 +42,15 @@ export class UsersService {
       where: { id },
     });
   }
+
+  async update2FactorSecret(userId: number, secret: string | null | undefined, enabled: boolean): Promise<User> {
+    const updateData: any = { twoFactorEnabled: enabled };
+    if (secret !== undefined) {
+      updateData.twoFactorSecret = secret;
+    }
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+    });
+  }
 }

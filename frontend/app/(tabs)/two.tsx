@@ -8,7 +8,9 @@ import {
   Alert, 
   ScrollView,
   ActivityIndicator,
-  Switch
+  Switch,
+  Modal,
+  TextInput
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -30,6 +32,11 @@ export default function ProfileScreen() {
   const { notificationsEnabled, toggleNotifications } = useNotifications();
   const [latestReco, setLatestReco] = useState<any>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [show2faModal, setShow2faModal] = useState(false);
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [twoFactorUri, setTwoFactorUri] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -43,6 +50,16 @@ export default function ProfileScreen() {
         }
 
         setUser(JSON.parse(userData));
+
+        // Fetch fresh user profile details (includes 2FA state)
+        const meRes = await fetch(`${API_URL}/users/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (meRes.ok) {
+          const freshUser = await meRes.json();
+          setUser(freshUser);
+          await AsyncStorage.setItem('user', JSON.stringify(freshUser));
+        }
 
         // Load latest recommendation and visual checkin URL
         const recoStr = await AsyncStorage.getItem('latestRecommendation');
@@ -168,6 +185,84 @@ export default function ProfileScreen() {
       "Votre Style Pass IA a été généré avec succès et enregistré dans votre galerie de photos.",
       [{ text: "Super !", onPress: () => {} }]
     );
+  };
+
+  const handle2faPress = async () => {
+    if (user?.twoFactorEnabled) {
+      setTwoFactorSecret('');
+      setTwoFactorUri('');
+      setTwoFactorCode('');
+      setShow2faModal(true);
+    } else {
+      setTwoFactorLoading(true);
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const response = await fetch(`${API_URL}/auth/2fa/generate`, {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || 'Impossible de générer le secret 2FA.');
+        }
+
+        setTwoFactorSecret(data.secret);
+        setTwoFactorUri(data.otpauthUrl);
+        setTwoFactorCode('');
+        setShow2faModal(true);
+      } catch (err: any) {
+        Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
+      } finally {
+        setTwoFactorLoading(false);
+      }
+    }
+  };
+
+  const handleConfirm2fa = async () => {
+    if (!twoFactorCode || twoFactorCode.length !== 6) {
+      Alert.alert('Erreur', 'Veuillez saisir le code à 6 chiffres.');
+      return;
+    }
+
+    setTwoFactorLoading(true);
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const endpoint = user?.twoFactorEnabled ? 'turn-off' : 'turn-on';
+      
+      const response = await fetch(`${API_URL}/auth/2fa/${endpoint}`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ code: twoFactorCode }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'Code de validation invalide.');
+      }
+
+      const updatedUser = { ...user, twoFactorEnabled: !user.twoFactorEnabled };
+      setUser(updatedUser);
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      setShow2faModal(false);
+      Alert.alert(
+        'Succès',
+        user?.twoFactorEnabled 
+          ? 'La validation en deux étapes a été désactivée.' 
+          : 'La validation en deux étapes a été activée avec succès !'
+      );
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
+    } finally {
+      setTwoFactorLoading(false);
+    }
   };
 
   if (loading) {
@@ -334,6 +429,26 @@ export default function ProfileScreen() {
 
             <View style={styles.actionDivider} />
 
+            {/* 2FA Item */}
+            <Pressable style={styles.actionItem} onPress={handle2faPress} disabled={twoFactorLoading}>
+              <View style={[styles.actionIconFrame, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
+                {twoFactorLoading ? (
+                  <ActivityIndicator size="small" color="#8B5CF6" />
+                ) : (
+                  <Feather name="shield" size={18} color="#8B5CF6" />
+                )}
+              </View>
+              <Text style={styles.actionText}>Validation en deux étapes (2FA)</Text>
+              <View style={styles.badge2fa}>
+                <Text style={styles.badge2faText}>
+                  {user?.twoFactorEnabled ? 'Activé' : 'Désactivé'}
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={16} color="#8A8A9E" style={{ marginLeft: 8 }} />
+            </Pressable>
+
+            <View style={styles.actionDivider} />
+
             {/* Decconnexion */}
             <Pressable style={styles.actionItem} onPress={handleLogout}>
               <View style={[styles.actionIconFrame, { backgroundColor: 'rgba(255, 142, 83, 0.1)' }]}>
@@ -358,6 +473,80 @@ export default function ProfileScreen() {
         </View>
 
       </ScrollView>
+
+      {/* 2FA SETUP MODAL */}
+      <Modal
+        visible={show2faModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShow2faModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <BlurView intensity={40} tint="dark" style={styles.modalBlur}>
+            <View style={styles.modalCard}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {user?.twoFactorEnabled ? 'Désactiver le 2FA' : 'Activer le 2FA'}
+                </Text>
+                <Pressable onPress={() => setShow2faModal(false)} style={styles.modalCloseBtn}>
+                  <Ionicons name="close" size={24} color="#FFF" />
+                </Pressable>
+              </View>
+
+              <ScrollView contentContainerStyle={styles.modalScroll} showsVerticalScrollIndicator={false}>
+                <Text style={styles.modalDesc}>
+                  {user?.twoFactorEnabled 
+                    ? 'Saisissez le code de validation à 6 chiffres généré par votre application d\'authentification pour confirmer la désactivation.'
+                    : 'Scannez le QR Code ci-dessous avec votre application d\'authentification (Google Authenticator, Authy, etc.) ou copiez la clé secrète.'}
+                </Text>
+
+                {!user?.twoFactorEnabled && twoFactorUri ? (
+                  <View style={styles.qrWrapper}>
+                    <View style={styles.qrFrame}>
+                      <Image 
+                        source={{ uri: `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(twoFactorUri)}` }} 
+                        style={styles.qrImage}
+                      />
+                    </View>
+                    <View style={styles.secretBox}>
+                      <Text style={styles.secretLabel}>CLÉ SECRÈTE</Text>
+                      <Text selectable style={styles.secretValue}>{twoFactorSecret}</Text>
+                    </View>
+                  </View>
+                ) : null}
+
+                <View style={styles.inputWrapper}>
+                  <Text style={styles.inputLabel}>Code de validation à 6 chiffres</Text>
+                  <View style={styles.inputContainer}>
+                    <Feather name="shield" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                    <TextInput 
+                      placeholder="000000" 
+                      placeholderTextColor="rgba(255, 255, 255, 0.4)"
+                      keyboardType="numeric"
+                      maxLength={6}
+                      value={twoFactorCode}
+                      onChangeText={setTwoFactorCode}
+                      style={styles.input}
+                      selectionColor="#8B5CF6"
+                    />
+                  </View>
+                </View>
+
+                <Pressable style={styles.confirmBtn} onPress={handleConfirm2fa} disabled={twoFactorLoading}>
+                  {twoFactorLoading ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.confirmBtnText}>
+                      {user?.twoFactorEnabled ? 'Désactiver' : 'Activer'}
+                    </Text>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </BlurView>
+        </View>
+      </Modal>
+
     </View>
   );
 }
@@ -701,5 +890,138 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     width: '100%',
     paddingVertical: 10,
+  },
+  badge2fa: {
+    backgroundColor: 'rgba(139, 92, 246, 0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(139, 92, 246, 0.15)',
+  },
+  badge2faText: {
+    color: '#8B5CF6',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalBlur: {
+    width: '90%',
+    maxHeight: '85%',
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  modalCard: {
+    padding: 24,
+    backgroundColor: 'rgba(31, 41, 55, 0.92)',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+  },
+  modalCloseBtn: {
+    padding: 4,
+  },
+  modalScroll: {
+    gap: 16,
+  },
+  modalDesc: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    lineHeight: 18,
+  },
+  qrWrapper: {
+    alignItems: 'center',
+    gap: 14,
+    marginVertical: 10,
+  },
+  qrFrame: {
+    padding: 10,
+    backgroundColor: '#FFF',
+    borderRadius: 16,
+  },
+  qrImage: {
+    width: 180,
+    height: 180,
+  },
+  secretBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    alignItems: 'center',
+  },
+  secretLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 1.5,
+    marginBottom: 4,
+  },
+  secretValue: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#FFF',
+    letterSpacing: 1,
+  },
+  inputWrapper: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    height: 52,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  inputIcon: {
+    marginRight: 10,
+  },
+  input: {
+    flex: 1,
+    fontSize: 14,
+    color: '#FFF',
+    fontWeight: '600',
+  },
+  confirmBtn: {
+    backgroundColor: '#8B5CF6',
+    height: 48,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  confirmBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

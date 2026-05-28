@@ -2,6 +2,7 @@ import { Injectable, ConflictException, UnauthorizedException, InternalServerErr
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import { generateSecret, generateURI, verify } from 'otplib';
 
 @Injectable()
 export class AuthService {
@@ -58,5 +59,57 @@ export class AuthService {
         age: user.age,
       },
     };
+  }
+
+  async generateTwoFactorSecret(userId: number, email: string) {
+    const secret = generateSecret();
+    const otpauthUrl = generateURI({
+      issuer: 'StyleTonHumeur',
+      label: email,
+      secret,
+    });
+    await this.usersService.update2FactorSecret(userId, secret, false);
+    return {
+      secret,
+      otpauthUrl,
+    };
+  }
+
+  async verifyTwoFactorCode(userId: number, code: string): Promise<boolean> {
+    const user = await this.usersService.findById(userId);
+    if (!user || !user.twoFactorSecret) {
+      return false;
+    }
+    const result = await verify({
+      token: code,
+      secret: user.twoFactorSecret,
+    });
+    return result.valid;
+  }
+
+  async enableTwoFactor(userId: number, code: string): Promise<boolean> {
+    const isValid = await this.verifyTwoFactorCode(userId, code);
+    if (isValid) {
+      await this.usersService.update2FactorSecret(userId, undefined, true);
+      return true;
+    }
+    return false;
+  }
+
+  async disableTwoFactor(userId: number, code: string): Promise<boolean> {
+    const isValid = await this.verifyTwoFactorCode(userId, code);
+    if (isValid) {
+      await this.usersService.update2FactorSecret(userId, null, false);
+      return true;
+    }
+    return false;
+  }
+
+  async loginWithUserId(userId: number) {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+    return this.login(user);
   }
 }
