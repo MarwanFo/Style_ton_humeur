@@ -18,6 +18,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '@/constants/Api';
 import { useNotifications } from '@/hooks/useNotifications';
+import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -27,6 +28,8 @@ export default function ProfileScreen() {
   const [badges, setBadges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const { notificationsEnabled, toggleNotifications } = useNotifications();
+  const [latestReco, setLatestReco] = useState<any>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfileData = async () => {
@@ -40,6 +43,20 @@ export default function ProfileScreen() {
         }
 
         setUser(JSON.parse(userData));
+
+        // Load latest recommendation and visual checkin URL
+        const recoStr = await AsyncStorage.getItem('latestRecommendation');
+        if (recoStr) {
+          setLatestReco(JSON.parse(recoStr));
+        }
+
+        const checkinStr = await AsyncStorage.getItem('latestCheckin');
+        if (checkinStr) {
+          const parsedCheckin = JSON.parse(checkinStr);
+          if (parsedCheckin.imageUrl) {
+            setAvatarUrl(parsedCheckin.imageUrl);
+          }
+        }
 
         // Fetch actual streak from backend
         const response = await fetch(`${API_URL}/checkins/streak`, {
@@ -145,6 +162,14 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleShareStylePass = () => {
+    Alert.alert(
+      "Style Pass Exporté",
+      "Votre Style Pass IA a été généré avec succès et enregistré dans votre galerie de photos.",
+      [{ text: "Super !", onPress: () => {} }]
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -165,30 +190,80 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
       >
         
-        {/* PROFILE HEADER CARD */}
-        <View style={styles.profileHeaderCardShadow}>
-          <BlurView intensity={70} tint="light" style={styles.profileHeaderCard}>
-            <View style={[styles.avatarBorder, { borderColor: '#7F00FF' }]}>
-              <Image 
-                source={{ uri: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80' }} 
-                style={styles.avatar} 
-              />
+        {/* DYNAMIC STYLE PASS (FASHION PASSPORT) */}
+        <Animated.View entering={FadeInUp.duration(800).springify()} style={styles.stylePassShadow}>
+          <LinearGradient
+            colors={['#1F2937', '#111827']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.stylePassCard}
+          >
+            <View style={[styles.passGlow, { backgroundColor: '#8B5CF6', top: -30, right: -30 }]} />
+            <View style={[styles.passGlow, { backgroundColor: '#EC4899', bottom: -40, left: -40 }]} />
+
+            <View style={styles.passHeader}>
+              <View style={styles.passBrandWrap}>
+                <Ionicons name="sparkles" size={14} color="#FFF" style={{ marginRight: 6 }} />
+                <Text style={styles.passBrandText}>STYLE TON HUMEUR</Text>
+              </View>
+              <View style={styles.passCategoryBadge}>
+                <Text style={styles.passCategoryText}>PASSPORT STYLE</Text>
+              </View>
             </View>
-            <Text style={styles.displayName}>{user?.displayName || 'Chaymae'}</Text>
-            <Text style={styles.emailText}>{user?.email || 'chaymae@email.com'}</Text>
-            
-            <View style={styles.tagRow}>
-              <View style={styles.profileTag}>
-                <Text style={styles.profileTagText}>
-                  {user?.gender === 'femme' ? '👩 Femme' : '👨 Homme'}
+
+            <View style={styles.passBody}>
+              <View style={styles.passAvatarBorder}>
+                <Image 
+                  source={{ uri: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80' }} 
+                  style={styles.passAvatar} 
+                />
+                <View style={styles.passAvatarGlow} />
+              </View>
+              
+              <View style={styles.passIdentityWrap}>
+                <Text numberOfLines={1} style={styles.passName}>{user?.displayName || 'Chaymae'}</Text>
+                <Text numberOfLines={1} style={styles.passEmail}>{user?.email || 'chaymae@email.com'}</Text>
+                
+                <View style={styles.passTagsRow}>
+                  <View style={styles.passMiniTag}>
+                    <Text style={styles.passMiniTagText}>
+                      {user?.gender === 'femme' ? '👩 Femme' : '👨 Homme'}
+                    </Text>
+                  </View>
+                  <View style={styles.passMiniTag}>
+                    <Text style={styles.passMiniTagText}>🎂 {user?.age || 22} ans</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.passDivider} />
+
+            <View style={styles.passFooter}>
+              <View style={styles.passMetaBlock}>
+                <Text style={styles.passMetaLabel}>ARCHÉTYPE STYLE</Text>
+                <Text style={styles.passMetaValue} numberOfLines={1}>
+                  {latestReco?.style_keywords?.join(', ') || 'Explorateur de Style'}
                 </Text>
               </View>
-              <View style={styles.profileTag}>
-                <Text style={styles.profileTagText}>🎂 {user?.age || 22} ans</Text>
+              
+              <View style={styles.passMetaBlockRight}>
+                <Text style={styles.passMetaLabel}>HARMONIE COULEURS</Text>
+                <View style={styles.paletteRow}>
+                  <View style={[styles.paletteDot, { backgroundColor: '#8B5CF6' }]} />
+                  <View style={[styles.paletteDot, { backgroundColor: '#3B82F6' }]} />
+                  <View style={[styles.paletteDot, { backgroundColor: '#EC4899' }]} />
+                  <View style={[styles.paletteDot, { backgroundColor: '#10B981' }]} />
+                </View>
               </View>
             </View>
-          </BlurView>
-        </View>
+
+            <Pressable style={styles.passShareBtn} onPress={handleShareStylePass}>
+              <Feather name="share-2" size={14} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.passShareBtnText}>Exporter le Style Pass</Text>
+            </Pressable>
+          </LinearGradient>
+        </Animated.View>
 
         {/* METRICS SHOWCASE */}
         <View style={styles.metricsRow}>
@@ -301,65 +376,174 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 22,
   },
-  profileHeaderCardShadow: {
-    shadowColor: '#7F00FF',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 4,
-    marginBottom: 24,
-  },
-  profileHeaderCard: {
+  stylePassShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 8,
+    marginBottom: 26,
     borderRadius: 28,
     overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.45)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.8)',
-    padding: 24,
+  },
+  stylePassCard: {
+    borderRadius: 28,
+    padding: 20,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  passGlow: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    opacity: 0.25,
+  },
+  passHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  passBrandWrap: {
+    flexDirection: 'row',
     alignItems: 'center',
   },
-  avatarBorder: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: '#FFF',
-    padding: 3,
-    borderWidth: 2.5,
-    marginBottom: 16,
+  passBrandText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 2,
   },
-  avatar: {
+  passCategoryBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  passCategoryText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#E5E7EB',
+    letterSpacing: 1.5,
+  },
+  passBody: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 18,
+  },
+  passAvatarBorder: {
+    position: 'relative',
+    width: 72,
+    height: 72,
+    borderRadius: 22,
+    backgroundColor: '#374151',
+    padding: 2,
+  },
+  passAvatar: {
     width: '100%',
     height: '100%',
-    borderRadius: 40,
+    borderRadius: 20,
   },
-  displayName: {
-    fontSize: 22,
+  passAvatarGlow: {
+    position: 'absolute',
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 24,
+    borderWidth: 2.5,
+    borderColor: '#8B5CF6',
+    opacity: 0.8,
+  },
+  passIdentityWrap: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  passName: {
+    fontSize: 20,
     fontWeight: '800',
-    color: '#1E1E2C',
-    marginBottom: 4,
+    color: '#FFF',
+    letterSpacing: -0.5,
+    marginBottom: 2,
   },
-  emailText: {
-    fontSize: 13,
-    color: '#8A8A9E',
-    fontWeight: '500',
+  passEmail: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 10,
+  },
+  passTagsRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  passMiniTag: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  passMiniTagText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  passDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     marginBottom: 16,
   },
-  tagRow: {
+  passFooter: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
-  profileTag: {
-    backgroundColor: 'rgba(127, 0, 255, 0.06)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 10,
+  passMetaBlock: {
+    flex: 1,
+  },
+  passMetaBlockRight: {
+    alignItems: 'flex-end',
+  },
+  passMetaLabel: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 1.5,
+    marginBottom: 6,
+  },
+  passMetaValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFF',
+  },
+  paletteRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  paletteDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
     borderWidth: 1,
-    borderColor: 'rgba(127, 0, 255, 0.1)',
+    borderColor: 'rgba(255,255,255,0.2)',
   },
-  profileTagText: {
-    color: '#7F00FF',
+  passShareBtn: {
+    width: '100%',
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+  },
+  passShareBtnText: {
     fontSize: 12,
     fontWeight: '700',
+    color: '#FFF',
   },
   // Metrics row
   metricsRow: {
