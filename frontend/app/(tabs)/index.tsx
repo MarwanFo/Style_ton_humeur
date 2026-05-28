@@ -137,7 +137,7 @@ export default function HomeScreen() {
       [
         {
           text: "🎙️ Assistant Vocal",
-          onPress: () => router.push('/voice-stylist')
+          onPress: () => router.push('/voice-stylist' as any)
         },
         {
           text: "📸 Analyser ma silhouette",

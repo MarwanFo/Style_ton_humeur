@@ -289,7 +289,7 @@ export class CheckinsService {
     const moodSelected = moodDetected;
 
     // 4. Save checkin with transcript and response voice message in DB
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx: any) => {
       const checkin = await tx.dailyCheckIn.create({
         data: {
           userId,
