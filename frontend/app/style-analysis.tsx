@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Dimensions, ScrollView, Pressable, ActivityIndicator, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ScrollView, Pressable, ActivityIndicator, StatusBar, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -23,6 +23,7 @@ export default function StyleAnalysisScreen() {
   const [isFavorited, setIsFavorited] = useState(false);
   const [activeOutfitIndex, setActiveOutfitIndex] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const soundRef = useRef<Audio.Sound | null>(null);
 
@@ -33,6 +34,23 @@ export default function StyleAnalysisScreen() {
         if (recoStr) {
           const parsed = JSON.parse(recoStr);
           setRecommendation(parsed);
+
+          // Retrieve image URL if it exists in different structures
+          if (parsed.imageUrl) {
+            setImageUrl(parsed.imageUrl);
+          } else if (parsed.checkin?.imageUrl) {
+            setImageUrl(parsed.checkin.imageUrl);
+          } else {
+            const checkinStr = await AsyncStorage.getItem('latestCheckin');
+            if (checkinStr) {
+              const parsedCheckin = JSON.parse(checkinStr);
+              if (parsedCheckin.imageUrl) {
+                setImageUrl(parsedCheckin.imageUrl);
+              } else if (parsedCheckin.checkin?.imageUrl) {
+                setImageUrl(parsedCheckin.checkin.imageUrl);
+              }
+            }
+          }
 
           // Check if this analysis is already in favorites
           const favsStr = await AsyncStorage.getItem('savedRecommendations');
@@ -212,6 +230,30 @@ export default function StyleAnalysisScreen() {
             <Ionicons name={isFavorited ? "bookmark" : "bookmark-outline"} size={22} color={isFavorited ? "#8B5CF6" : "#6B7280"} />
           </Pressable>
         </Animated.View>
+
+        {imageUrl && (
+          <Animated.View entering={FadeInDown.delay(150).duration(800).springify()} style={styles.silhouetteCardShadow}>
+            <View style={styles.silhouetteCard}>
+              <Image source={{ uri: imageUrl }} style={styles.silhouetteImage} />
+              <View style={styles.silhouetteOverlay}>
+                <LinearGradient
+                  colors={['transparent', 'rgba(0,0,0,0.8)']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={styles.silhouetteTextWrap}>
+                  <View style={styles.silhouetteBadge}>
+                    <Ionicons name="scan" size={12} color="#FFF" style={{ marginRight: 4 }} />
+                    <Text style={styles.silhouetteBadgeText}>SILHOUETTE SCAN IA</Text>
+                  </View>
+                  <Text style={styles.silhouetteTitle}>Votre silhouette analysée</Text>
+                  <Text style={styles.silhouetteSub}>
+                    Cette photo sert de base pour l'ajustement virtuel des tenues dans la cabine d'essayage.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          </Animated.View>
+        )}
 
         {/* LOOKBOOK SECTION */}
         <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.section}>
@@ -681,5 +723,65 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginLeft: 12,
+  },
+  silhouetteCardShadow: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 4,
+    marginBottom: 24,
+    borderRadius: 24,
+    overflow: 'hidden',
+  },
+  silhouetteCard: {
+    height: 220,
+    borderRadius: 24,
+    backgroundColor: '#FFF',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  silhouetteImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  silhouetteOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
+    justifyContent: 'flex-end',
+    padding: 20,
+  },
+  silhouetteTextWrap: {
+    gap: 4,
+  },
+  silhouetteBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(139, 92, 246, 0.8)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  silhouetteBadgeText: {
+    color: '#FFF',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  silhouetteTitle: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  silhouetteSub: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 11,
+    lineHeight: 15,
   },
 });
