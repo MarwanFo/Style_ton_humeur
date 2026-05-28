@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Pressable, StatusBar, ActivityIndicator, Alert, Dimensions, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StatusBar, ActivityIndicator, Alert, Dimensions, Image, ScrollView, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -34,6 +34,33 @@ export default function VoiceStylistScreen() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [recordDuration, setRecordDuration] = useState(0);
   const durationInterval = useRef<NodeJS.Timeout | null>(null);
+
+  // Custom Alert states
+  const [customAlert, setCustomAlert] = useState<{
+    visible: boolean;
+    title: string;
+    description: string;
+    options: { text: string; onPress: () => void; isCancel?: boolean }[];
+    icon?: string;
+    iconColor?: string;
+  } | null>(null);
+
+  const showCustomAlert = (
+    title: string,
+    description: string,
+    options: { text: string; onPress: () => void; isCancel?: boolean }[],
+    icon = 'sparkles',
+    iconColor?: string
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      description,
+      options,
+      icon,
+      iconColor,
+    });
+  };
 
   // Assistant Responses & Speech State
   const [lastTranscript, setLastTranscript] = useState<string>('');
@@ -139,7 +166,13 @@ export default function VoiceStylistScreen() {
       }, 1000) as any;
     } catch (err) {
       console.error('Failed to start recording', err);
-      Alert.alert('Permission microphone', 'Veuillez accorder la permission d\'enregistrer dans les paramètres de votre appareil.');
+      showCustomAlert(
+        'Permission microphone',
+        "Veuillez accorder la permission d'enregistrer dans les paramètres de votre appareil.",
+        [{ text: "OK", onPress: () => {} }],
+        "mic-off-outline",
+        "#EF4444"
+      );
     }
   };
 
@@ -164,12 +197,24 @@ export default function VoiceStylistScreen() {
         console.log(`Audio file size: ${fileInfo.exists ? (fileInfo as any).size : 0} bytes, duration: ${duration}s`);
 
         if (!fileInfo.exists || (fileInfo as any).size < 1000) {
-          Alert.alert("Enregistrement vide", "Aucun son n'a été détecté. Veuillez vérifier les permissions de votre micro et réessayer.");
+          showCustomAlert(
+            "Enregistrement vide",
+            "Aucun son n'a été détecté. Veuillez vérifier les permissions de votre micro et réessayer.",
+            [{ text: "OK", onPress: () => {} }],
+            "alert-circle-outline",
+            "#EF4444"
+          );
           return;
         }
 
         if (duration < 2) {
-          Alert.alert("Message trop court", "Veuillez parler plus longtemps (au moins 2 secondes) pour que l'assistant puisse vous conseiller.");
+          showCustomAlert(
+            "Message trop court",
+            "Veuillez parler plus longtemps (au moins 2 secondes) pour que l'assistant puisse vous conseiller.",
+            [{ text: "OK", onPress: () => {} }],
+            "hourglass-outline",
+            "#EC4899"
+          );
           return;
         }
 
@@ -246,7 +291,13 @@ export default function VoiceStylistScreen() {
       }
     } catch (err: any) {
       console.log('Processing voice check-in failed:', err.message || err);
-      Alert.alert('Erreur', err.message || 'Impossible de transcrire ou de générer les recommandations. Veuillez réessayer.');
+      showCustomAlert(
+        'Erreur',
+        err.message || 'Impossible de transcrire ou de générer les recommandations. Veuillez réessayer.',
+        [{ text: "Réessayer", onPress: () => {} }],
+        "alert-circle-outline",
+        "#EF4444"
+      );
     } finally {
       setIsProcessing(false);
     }
@@ -325,18 +376,25 @@ export default function VoiceStylistScreen() {
 
   const handleUploadPhoto = async () => {
     if (!checkinId) {
-      Alert.alert("Erreur", "Session de check-in introuvable.");
+      showCustomAlert(
+        "Erreur",
+        "Session de check-in introuvable.",
+        [{ text: "OK", onPress: () => {} }],
+        "alert-circle-outline",
+        "#EF4444"
+      );
       return;
     }
 
-    Alert.alert(
+    showCustomAlert(
       "Silhouette & Fitting Room",
-      "Prendre une photo de votre silhouette complète ou choisir dans la galerie :",
+      "Ajoutez une photo de votre silhouette complète pour débloquer la cabine d'essayage virtuelle (VTON) :",
       [
-        { text: "Appareil Photo", onPress: () => launchImagePicker(true) },
-        { text: "Galerie", onPress: () => launchImagePicker(false) },
-        { text: "Annuler", style: "cancel" }
-      ]
+        { text: "📸 Appareil Photo", onPress: () => launchImagePicker(true) },
+        { text: "🖼️ Galerie photo", onPress: () => launchImagePicker(false) },
+        { text: "Annuler", onPress: () => {}, isCancel: true }
+      ],
+      "camera-outline"
     );
   };
 
@@ -384,7 +442,13 @@ export default function VoiceStylistScreen() {
       setIsUploadingPhoto(false);
 
       if (!response.ok) {
-        Alert.alert("Erreur", resData.message || "Impossible d'importer la photo.");
+        showCustomAlert(
+          "Erreur",
+          resData.message || "Impossible d'importer la photo.",
+          [{ text: "OK", onPress: () => {} }],
+          "alert-circle-outline",
+          "#EF4444"
+        );
         return;
       }
 
@@ -405,10 +469,22 @@ export default function VoiceStylistScreen() {
         await AsyncStorage.setItem('latestRecommendation', JSON.stringify(latestReco));
       }
 
-      Alert.alert("Photo Ajoutée !", "Votre silhouette est enregistrée. Elle sera affichée dans le miroir d'essayage.");
+      showCustomAlert(
+        "Photo Ajoutée !",
+        "Votre silhouette est enregistrée. Elle sera affichée dans le miroir d'essayage.",
+        [{ text: "Super !", onPress: () => {} }],
+        "checkmark-circle-outline",
+        "#10B981"
+      );
     } catch (err) {
       setIsUploadingPhoto(false);
-      Alert.alert("Erreur", "Une anomalie s'est produite lors de l'import de la photo.");
+      showCustomAlert(
+        "Erreur",
+        "Une anomalie s'est produite lors de l'import de la photo.",
+        [{ text: "OK", onPress: () => {} }],
+        "alert-circle-outline",
+        "#EF4444"
+      );
     }
   };
 
@@ -613,6 +689,51 @@ export default function VoiceStylistScreen() {
 
         </ScrollView>
       </View>
+
+      {/* PREMIUM CUSTOM ALERT MODAL */}
+      <Modal visible={!!customAlert && customAlert.visible} transparent animationType="fade">
+        <View style={styles.customAlertOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCustomAlert(null)} />
+          <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.customAlertShadow}>
+            <BlurView intensity={95} tint="dark" style={styles.customAlertCard}>
+              {customAlert?.icon && (
+                <View style={[styles.customAlertIconFrame, { backgroundColor: `${customAlert.iconColor || '#8B5CF6'}15` }]}>
+                  <Ionicons name={customAlert.icon as any} size={28} color={customAlert.iconColor || '#A78BFA'} />
+                </View>
+              )}
+
+              <Text style={styles.customAlertTitle}>{customAlert?.title}</Text>
+              <Text style={styles.customAlertSub}>{customAlert?.description}</Text>
+
+              <View style={styles.customAlertButtonsWrap}>
+                {customAlert?.options.map((opt, idx) => {
+                  const isCancel = opt.isCancel;
+                  return (
+                    <Pressable
+                      key={idx}
+                      style={[
+                        styles.customAlertBtn,
+                        isCancel ? styles.customAlertBtnCancel : { backgroundColor: '#8B5CF6' }
+                      ]}
+                      onPress={() => {
+                        setCustomAlert(null);
+                        opt.onPress();
+                      }}
+                    >
+                      <Text style={[
+                        styles.customAlertBtnText,
+                        isCancel ? styles.customAlertBtnTextCancel : { color: '#FFF' }
+                      ]}>
+                        {opt.text}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </BlurView>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -980,5 +1101,77 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 13,
     fontWeight: '700',
+  },
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  customAlertShadow: {
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 10,
+    borderRadius: 28,
+    overflow: 'hidden',
+  },
+  customAlertCard: {
+    backgroundColor: 'rgba(17, 24, 39, 0.95)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 28,
+    padding: 24,
+    alignItems: 'center',
+  },
+  customAlertIconFrame: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFF',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  customAlertSub: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  customAlertButtonsWrap: {
+    width: '100%',
+    gap: 10,
+  },
+  customAlertBtn: {
+    height: 52,
+    width: '100%',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customAlertBtnCancel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  customAlertBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customAlertBtnTextCancel: {
+    color: '#D1D5DB',
   },
 });

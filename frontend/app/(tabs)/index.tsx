@@ -49,6 +49,33 @@ export default function HomeScreen() {
   const [favorites, setFavorites] = useState<any[]>([]);
   const [isFavoritesModalVisible, setIsFavoritesModalVisible] = useState(false);
 
+  // Custom Alert states
+  const [customAlert, setCustomAlert] = useState<{
+    visible: boolean;
+    title: string;
+    description: string;
+    options: { text: string; onPress: () => void; isCancel?: boolean }[];
+    icon?: string;
+    iconColor?: string;
+  } | null>(null);
+
+  const showCustomAlert = (
+    title: string,
+    description: string,
+    options: { text: string; onPress: () => void; isCancel?: boolean }[],
+    icon = 'sparkles',
+    iconColor?: string
+  ) => {
+    setCustomAlert({
+      visible: true,
+      title,
+      description,
+      options,
+      icon,
+      iconColor,
+    });
+  };
+
   const loadFavorites = async () => {
     try {
       const favsStr = await AsyncStorage.getItem('savedRecommendations');
@@ -75,7 +102,13 @@ export default function HomeScreen() {
       setIsFavoritesModalVisible(false);
       router.push('/style-analysis');
     } catch (err) {
-      Alert.alert('Erreur', 'Impossible d\'ouvrir ce favori.');
+      showCustomAlert(
+        "Erreur",
+        "Impossible d'ouvrir ce favori.",
+        [{ text: "OK", onPress: () => {} }],
+        "alert-circle-outline",
+        "#EF4444"
+      );
     }
   };
 
@@ -87,12 +120,18 @@ export default function HomeScreen() {
       setFavorites(updated);
       await AsyncStorage.setItem('savedRecommendations', JSON.stringify(updated));
     } catch (err) {
-      Alert.alert('Erreur', 'Impossible de supprimer.');
+      showCustomAlert(
+        "Erreur",
+        "Impossible de supprimer.",
+        [{ text: "OK", onPress: () => {} }],
+        "alert-circle-outline",
+        "#EF4444"
+      );
     }
   };
 
   const handleScanStyle = () => {
-    Alert.alert(
+    showCustomAlert(
       "Style & Mode",
       "Sélectionnez votre mode d'analyse :",
       [
@@ -107,7 +146,13 @@ export default function HomeScreen() {
             const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
             if (!cameraPermission.granted || !libraryPermission.granted) {
-              Alert.alert("Permissions", "L'accès à l'appareil photo est requis pour cette fonctionnalité premium.");
+              showCustomAlert(
+                "Permissions",
+                "L'accès à l'appareil photo est requis pour cette fonctionnalité premium.",
+                [{ text: "OK", onPress: () => {} }],
+                "lock-closed-outline",
+                "#EF4444"
+              );
               return;
             }
 
@@ -118,22 +163,26 @@ export default function HomeScreen() {
             setIsFormModalVisible(true);
           }
         },
-        { text: "Annuler", style: "cancel" }
-      ]
+        { text: "Annuler", onPress: () => {}, isCancel: true }
+      ],
+      "sparkles-outline"
     );
   };
 
   const handleProceedToScan = () => {
     setIsFormModalVisible(false);
-    Alert.alert(
-      "Intelligence Artificielle",
-      "Voulez-vous prendre une photo ou choisir depuis votre galerie ?",
-      [
-        { text: "Appareil Photo", onPress: () => launchPicker(true) },
-        { text: "Galerie", onPress: () => launchPicker(false) },
-        { text: "Annuler", style: "cancel" },
-      ]
-    );
+    setTimeout(() => {
+      showCustomAlert(
+        "Intelligence Artificielle",
+        "Voulez-vous prendre une photo ou choisir depuis votre galerie ?",
+        [
+          { text: "📸 Appareil Photo", onPress: () => launchPicker(true) },
+          { text: "🖼️ Galerie photo", onPress: () => launchPicker(false) },
+          { text: "Annuler", onPress: () => {}, isCancel: true },
+        ],
+        "camera-outline"
+      );
+    }, 400);
   };
 
   const launchPicker = async (isCamera: boolean) => {
@@ -178,11 +227,23 @@ export default function HomeScreen() {
       setIsScanning(false);
 
       if (!response.ok) {
-        Alert.alert("Erreur", resData.message || "Analyse impossible.");
+        showCustomAlert(
+          "Erreur",
+          resData.message || "Analyse impossible.",
+          [{ text: "OK", onPress: () => {} }],
+          "alert-circle-outline",
+          "#EF4444"
+        );
         return;
       }
       if (resData.isFullBodyValid === false) {
-        Alert.alert("Photo Non Conforme", resData.errorAlert);
+        showCustomAlert(
+          "Photo Non Conforme",
+          resData.errorAlert,
+          [{ text: "Réessayer", onPress: () => handleScanStyle() }],
+          "close-circle-outline",
+          "#EF4444"
+        );
         return;
       }
 
@@ -191,7 +252,13 @@ export default function HomeScreen() {
       router.replace('/style-analysis');
     } catch (err) {
       setIsScanning(false);
-      Alert.alert("Erreur", "Une anomalie s'est produite.");
+      showCustomAlert(
+        "Erreur",
+        "Une anomalie s'est produite.",
+        [{ text: "OK", onPress: () => {} }],
+        "alert-circle-outline",
+        "#EF4444"
+      );
     }
   };
 
@@ -516,6 +583,51 @@ export default function HomeScreen() {
               </Pressable>
             </View>
           </BlurView>
+        </View>
+      </Modal>
+
+      {/* PREMIUM CUSTOM ALERT MODAL */}
+      <Modal visible={!!customAlert && customAlert.visible} transparent animationType="fade">
+        <View style={styles.customAlertOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setCustomAlert(null)} />
+          <Animated.View entering={FadeInDown.duration(400).springify()} style={styles.customAlertShadow}>
+            <BlurView intensity={95} tint="light" style={styles.customAlertCard}>
+              {customAlert?.icon && (
+                <View style={[styles.customAlertIconFrame, { backgroundColor: `${customAlert.iconColor || selectedMood.accent}15` }]}>
+                  <Ionicons name={customAlert.icon as any} size={28} color={customAlert.iconColor || selectedMood.accent} />
+                </View>
+              )}
+
+              <Text style={styles.customAlertTitle}>{customAlert?.title}</Text>
+              <Text style={styles.customAlertSub}>{customAlert?.description}</Text>
+
+              <View style={styles.customAlertButtonsWrap}>
+                {customAlert?.options.map((opt, idx) => {
+                  const isCancel = opt.isCancel;
+                  return (
+                    <Pressable
+                      key={idx}
+                      style={[
+                        styles.customAlertBtn,
+                        isCancel ? styles.customAlertBtnCancel : { backgroundColor: selectedMood.accent }
+                      ]}
+                      onPress={() => {
+                        setCustomAlert(null);
+                        opt.onPress();
+                      }}
+                    >
+                      <Text style={[
+                        styles.customAlertBtnText,
+                        isCancel ? styles.customAlertBtnTextCancel : { color: '#FFF' }
+                      ]}>
+                        {opt.text}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </BlurView>
+          </Animated.View>
         </View>
       </Modal>
     </View>
@@ -932,5 +1044,81 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
     borderStyle: 'dashed',
+  },
+  customAlertOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  customAlertShadow: {
+    width: '100%',
+    maxWidth: 320,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.12,
+    shadowRadius: 30,
+    elevation: 10,
+    borderRadius: 28,
+    overflow: 'hidden',
+  },
+  customAlertCard: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+    borderRadius: 28,
+    padding: 24,
+    alignItems: 'center',
+  },
+  customAlertIconFrame: {
+    width: 60,
+    height: 60,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  customAlertTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#111827',
+    textAlign: 'center',
+    marginBottom: 8,
+    letterSpacing: -0.5,
+  },
+  customAlertSub: {
+    fontSize: 14,
+    color: '#4B5563',
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  customAlertButtonsWrap: {
+    width: '100%',
+    gap: 10,
+  },
+  customAlertBtn: {
+    height: 52,
+    width: '100%',
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.02,
+    shadowRadius: 8,
+  },
+  customAlertBtnCancel: {
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  customAlertBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  customAlertBtnTextCancel: {
+    color: '#4B5563',
   },
 });
