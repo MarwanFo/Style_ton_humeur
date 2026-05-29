@@ -57,6 +57,8 @@ export class AuthService {
         displayName: user.displayName,
         gender: user.gender,
         age: user.age,
+        role: user.role,
+        plan: user.plan,
       },
     };
   }

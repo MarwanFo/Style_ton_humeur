@@ -21,17 +21,36 @@ export default function Login() {
 
     setLoading(true);
     try {
-      // Mock login to simulate admin gateway. Since user asked for UI only first,
-      // we check for standard credentials. If valid, we redirect to dashboard.
-      if (email === 'admin@aurastudio.com' && password === 'admin123') {
-        localStorage.setItem('admin_token', 'mock_admin_token');
-        localStorage.setItem('admin_user', JSON.stringify({ email, role: 'ADMIN' }));
+      const response = await fetch('http://localhost:3000/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, pass: password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Identifiants invalides.');
+      }
+
+      if (data.isTwoFactorRequired) {
+        // Since we are mocking/stubbing 2FA first on admin or handling it, 
+        // let's show an alert or handle 2FA validation if needed.
+        setError('Le double facteur est activé sur ce compte. Utilisez l\'application mobile pour la configuration.');
+        return;
+      }
+
+      if (data.user && data.user.role === 'ADMIN') {
+        localStorage.setItem('admin_token', data.access_token);
+        localStorage.setItem('admin_user', JSON.stringify(data.user));
         navigate('/');
       } else {
-        setError('Identifiants invalides ou privilèges insuffisants.');
+        setError('Accès refusé. Privilèges administrateur requis.');
       }
-    } catch (err) {
-      setError('Une erreur est survenue lors de la connexion.');
+    } catch (err: any) {
+      setError(err.message || 'Une erreur est survenue lors de la connexion.');
     } finally {
       setLoading(false);
     }
