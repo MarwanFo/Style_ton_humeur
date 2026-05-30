@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards, Request, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Put, Body, Param, UseGuards, Request, HttpException, HttpStatus, ParseIntPipe } from '@nestjs/common';
 import { CheckinsService } from './checkins.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { TryOnService } from '../ai/try-on.service';
@@ -24,6 +24,16 @@ export class CheckinsController {
   ) {
     const userId = req.user.userId;
     return this.checkinsService.createCheckIn(userId, body);
+  }
+
+  @Put('recommendations/:id/music-feedback')
+  async updateMusicFeedback(
+    @Request() req,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { trackIndex: number; liked?: boolean; disliked?: boolean; isFavorite?: boolean },
+  ) {
+    const userId = req.user.userId;
+    return this.checkinsService.updateMusicFeedback(userId, id, body);
   }
 
   @Post('scan-style')

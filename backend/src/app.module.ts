@@ -8,9 +8,10 @@ import { WeatherModule } from './weather/weather.module';
 import { AiModule } from './ai/ai.module';
 import { CheckinsModule } from './checkins/checkins.module';
 import { SentimentsModule } from './sentiments/sentiments.module';
+import { MusicModule } from './music/music.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, UsersModule, WeatherModule, AiModule, CheckinsModule, SentimentsModule],
+  imports: [PrismaModule, AuthModule, UsersModule, WeatherModule, AiModule, CheckinsModule, SentimentsModule, MusicModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -360,7 +360,7 @@ export default function HomeScreen() {
             </Pressable>
 
             {/* FEATURE 3: MUSIQUE */}
-            <Pressable style={styles.cardWrapper} onPress={() => Alert.alert('Bientôt disponible', "En développement par l'équipe Musique.")}>
+            <Pressable style={styles.cardWrapper} onPress={() => router.push('/music')}>
               <LinearGradient colors={['#00C6FF', '#0072FF']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <View style={[styles.iconFrame, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>

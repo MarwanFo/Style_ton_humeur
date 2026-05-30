@@ -19,7 +19,7 @@ export class AiService {
 
   async getRecommendations(
     answers: any,
-    userProfile: { gender: string; age: number },
+    userProfile: { gender: string; age: number; musicPreferences?: string[] },
     weather: { temp: number; code: number } | null,
   ): Promise<any> {
     try {
@@ -27,18 +27,24 @@ export class AiService {
         ? `Météo actuelle : ${weather.temp}°C, code météo ${weather.code}`
         : `Météo non disponible.`;
 
+      const musicPrefsContext = userProfile.musicPreferences && userProfile.musicPreferences.length > 0
+        ? `Genres musicaux préférés de l'utilisateur : ${userProfile.musicPreferences.join(', ')}.`
+        : `Aucune préférence musicale spécifique renseignée. Propose des morceaux populaires et variés.`;
+
       const prompt = `
-Tu es un styliste expert. L'utilisateur est un(e) ${userProfile.gender} de ${userProfile.age} ans.
+Tu es un styliste expert et DJ personnel. L'utilisateur est un(e) ${userProfile.gender} de ${userProfile.age} ans.
 Réponses au questionnaire du jour : ${JSON.stringify(answers)}.
 ${weatherContext}
+${musicPrefsContext}
 
 Tu dois renvoyer STRICTEMENT un JSON valide respectant cette structure (rien d'autre autour, pas de balise markdown, juste le JSON brut).
 Règles importantes pour le JSON :
 1. Génère exactement 3 tenues dans "outfits".
 2. Génère exactement 2 routines dans "makeup".
-3. Génère entre 1 et 3 chansons dans "music".
-4. Ne mets pas de commentaires dans le JSON.
-5. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
+3. Génère entre 1 et 3 chansons dans "music". Les morceaux DOIVENT correspondre à l'humeur détectée (detected_mood) et être adaptés à l'âge (${userProfile.age} ans), au genre (${userProfile.gender}) et aux préférences musicales de l'utilisateur.
+4. Chaque morceau dans "music" DOIT inclure un champ "justification" : une courte phrase (1 seule phrase) expliquant pourquoi ce morceau correspond à l'humeur et au profil de l'utilisateur.
+5. Ne mets pas de commentaires dans le JSON.
+6. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
 
 Structure attendue :
 {
@@ -60,8 +66,9 @@ Structure attendue :
   ],
   "music": [
     {
-      "title": "titre",
-      "artist": "artiste"
+      "title": "titre du morceau",
+      "artist": "nom de l'artiste",
+      "justification": "Courte phrase expliquant pourquoi ce morceau correspond à l'humeur et au profil."
     }
   ]
 }`;
@@ -150,7 +157,7 @@ Structure attendue :
         { title: "Routine Intense (Soirée)", steps: ["Mascara volumateur noir", "Rouge à lèvres nude discret"] }
       ];
       result.music = [
-        { title: "Lofi Beats", artist: "Chillhop Music" }
+        { title: "Lofi Beats", artist: "Chillhop Music", justification: "Des battements calmes et apaisants, parfaits pour accompagner votre mood du jour." }
       ];
       
       return result;
@@ -229,31 +236,38 @@ Structure attendue :
    */
   async getVoiceRecommendations(
     transcript: string,
-    userProfile: { gender: string; age: number }
+    userProfile: { gender: string; age: number; musicPreferences?: string[] }
   ): Promise<any> {
     try {
       this.logger.log('Generating voice check-in recommendations...');
+
+      const musicPrefsContext = userProfile.musicPreferences && userProfile.musicPreferences.length > 0
+        ? `Genres musicaux préférés : ${userProfile.musicPreferences.join(', ')}.`
+        : `Aucune préférence musicale spécifique. Propose des morceaux populaires et variés.`;
+
       const prompt = `
-Tu es un styliste expert et conseiller de mode personnel.
+Tu es un styliste expert, conseiller de mode personnel et DJ.
 L'utilisateur s'est exprimé par message vocal et voici la transcription exacte de ce qu'il a dit :
 "${transcript}"
 
 L'utilisateur est un(e) ${userProfile.gender} de ${userProfile.age} ans.
+${musicPrefsContext}
 
 Tu dois impérativement renvoyer un JSON valide structuré exactement comme ceci, sans aucune explication ou texte autour (pas de balises markdown, pas de texte introductif, juste le JSON brut).
 Règles importantes pour le JSON :
 1. Génère exactement 3 tenues dans "outfits".
 2. Génère exactement 2 routines dans "makeup".
-3. Génère entre 1 et 3 chansons dans "music".
-4. Ne mets pas de commentaires dans le JSON.
-5. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
+3. Génère entre 1 et 3 chansons dans "music". Les morceaux DOIVENT correspondre à l'humeur détectée et être adaptés à l'âge (${userProfile.age} ans), au genre (${userProfile.gender}) et aux préférences musicales.
+4. Chaque morceau dans "music" DOIT inclure un champ "justification" : une courte phrase (1 seule phrase) expliquant pourquoi ce morceau correspond à l'humeur et au profil.
+5. Ne mets pas de commentaires dans le JSON.
+6. N'utilise pas de guillemets doubles (") à l'intérieur des valeurs de chaînes (si besoin, utilise des guillemets simples ').
 
 Structure attendue :
 {
   "detected_mood": "calme|confiant|joyeux|stressé|mélancolique|énergique",
   "style_keywords": ["mot1", "mot2"],
   "justification": "Courte phrase justifiant le style proposé.",
-  "ai_voice_message": "Un court message chaleureux, direct et encourageant (en français) à lire à voix haute par l'assistant. Par exemple, si l'utilisateur dit qu'il a un rendez-vous important, rassure-le et présente succinctement la tenue sélectionnée. Maximum 2 phrases.",
+  "ai_voice_message": "Un court message chaleureux, direct et encourageant (en français) à lire à voix haute par l'assistant. Maximum 2 phrases.",
   "outfits": [
     {
       "title": "Nom de la tenue",
@@ -269,8 +283,9 @@ Structure attendue :
   ],
   "music": [
     {
-      "title": "Lofi Beats",
-      "artist": "Chillhop Music"
+      "title": "titre du morceau",
+      "artist": "nom de l'artiste",
+      "justification": "Courte phrase expliquant pourquoi ce morceau correspond à l'humeur et au profil."
     }
   ]
 }`;
@@ -449,7 +464,8 @@ RÈGLES CRUCIALES :
         { title: "Routine Intense (Soirée)", steps: ["Mascara volumateur noir", "Rouge à lèvres nude discret"] }
       ],
       music: [
-        { title: "Lofi Beats", artist: "Chillhop Music" }
+        { title: "Lofi Beats", artist: "Chillhop Music", justification: "Des sonorités douces et apaisantes pour accompagner votre humeur calme et détendue." },
+        { title: "Blinding Lights", artist: "The Weeknd", justification: "Un hit énergique et entraînant pour booster votre confiance avant de sortir." }
       ]
     };
   }

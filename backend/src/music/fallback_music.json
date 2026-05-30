@@ -1,0 +1,87 @@
+{
+  "joyeux": [
+    { 
+      "trackId": "json-joyeux-1", 
+      "title": "Levitating", 
+      "artist": "Dua Lipa",
+      "previewUrl": "https://p.scdn.co/mp3-preview/f4f9f6e6d19a16f0d1a64f3876939597285913e2",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273bd3548909e462002166e9275"
+    },
+    { 
+      "trackId": "json-joyeux-2", 
+      "title": "Can't Stop The Feeling!", 
+      "artist": "Justin Timberlake",
+      "previewUrl": "https://p.scdn.co/mp3-preview/9f4a864e433a088c426f43706037b51e04273874",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b27361876664650630787e972986"
+    },
+    { 
+      "trackId": "json-joyeux-3", 
+      "title": "Happy", 
+      "artist": "Pharrell Williams",
+      "previewUrl": "https://p.scdn.co/mp3-preview/060e2908328f237f81442994e43312c12b772412",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b2733d59663809635e982c59a03c"
+    }
+  ],
+  "calme": [
+    { 
+      "trackId": "json-calme-1", 
+      "title": "Sunset Lover", 
+      "artist": "Petit Biscuit",
+      "previewUrl": "https://p.scdn.co/mp3-preview/7be2351659756f71092e0220c367610664f3316f",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273e9701a91e70d4f3b7f8f108f"
+    },
+    { 
+      "trackId": "json-calme-2", 
+      "title": "Nightbook", 
+      "artist": "Ludovico Einaudi",
+      "previewUrl": "https://p.scdn.co/mp3-preview/97f6c694a5e184e9f735d45d3e0984950346a066",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b2734139e559388c2b7d9f784775"
+    },
+    { 
+      "trackId": "json-calme-3", 
+      "title": "Weightless", 
+      "artist": "Marconi Union",
+      "previewUrl": "https://p.scdn.co/mp3-preview/716186f91726a110a300d1112674e792c9f52e2a",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b27376044719875955b412e879a8"
+    }
+  ],
+  "confiant": [
+    { 
+      "trackId": "json-confiant-1", 
+      "title": "Blinding Lights", 
+      "artist": "The Weeknd",
+      "previewUrl": "https://p.scdn.co/mp3-preview/3eb13506212e3073010f3c50005273752e2a0f8b",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273c511263c91a0c69d8d641151"
+    },
+    { 
+      "trackId": "json-confiant-2", 
+      "title": "HUMBLE.", 
+      "artist": "Kendrick Lamar",
+      "previewUrl": "https://p.scdn.co/mp3-preview/f62267f8c099307f59d28a39f606828551068285",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273cdb62372d7f8d689626c9284"
+    },
+    { 
+      "trackId": "json-confiant-3", 
+      "title": "Titanium", 
+      "artist": "David Guetta ft. Sia",
+      "previewUrl": "https://p.scdn.co/mp3-preview/f4e2f9d863f6834d9a39626c9284d7f8d689626c",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b2734139e559388c2b7d9f784775"
+    }
+  ],
+  "default": [
+    { 
+      "trackId": "json-default-1", 
+      "title": "As It Was", 
+      "artist": "Harry Styles",
+      "previewUrl": "https://p.scdn.co/mp3-preview/766986616c6986616c6986616c6986616c698661",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273b46f74097655d7f353caab14"
+    },
+    { 
+      "trackId": "json-default-2", 
+      "title": "Stay", 
+      "artist": "The Kid LAROI & Justin Bieber",
+      "previewUrl": "https://p.scdn.co/mp3-preview/b6c3676c6986616c6986616c6986616c6986616c",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273410313838063855635"
+    }
+  ]
+}
