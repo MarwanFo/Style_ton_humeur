@@ -33,6 +33,9 @@ model User {
   recommendations    Recommendation[]
   streak             Streak?
   userBadges         UserBadge[]
+  musicRecommendations MusicRecommendation[]
+  musicFeedbacks     MusicFeedback[]
+  dailyMoodQuestionnaires DailyMoodQuestionnaire[]
 }
 
 model ProfilePreference {
@@ -59,8 +62,68 @@ model DailyCheckIn {
 
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   recommendations Recommendation[]
+  musicRecommendations MusicRecommendation[]
 
   @@unique([userId, checkinDate])
+}
+
+model MusicRecommendation {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  dailyCheckInId   Int?
+  recommendationDate DateTime @default(now()) @db.Date
+  moodPrincipal    String
+  niveauEnergie    String
+  contexte         String?
+  spotifySeedGenres Json
+  spotifyValence   Float
+  spotifyEnergy    Float
+  spotifyDanceability Float?
+  spotifyAcousticness Float?
+  tracks           Json
+  createdAt        DateTime  @default(now())
+
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyCheckIn     DailyCheckIn? @relation(fields: [dailyCheckInId], references: [id], onDelete: SetNull)
+  feedbacks        MusicFeedback[]
+}
+
+model DailyMoodQuestionnaire {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  date           DateTime @db.Date
+  humeurDetectee String
+  niveauEnergie  String
+  contexte       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model MusicFeedback {
+  id                    Int      @id @default(autoincrement())
+  userId                Int
+  musicRecommendationId Int
+  trackId               String
+  liked                 Boolean
+  createdAt             DateTime @default(now())
+
+  user                  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  musicRecommendation   MusicRecommendation @relation(fields: [musicRecommendationId], references: [id], onDelete: Cascade)
+}
+
+model MusicFallbackPlaylist {
+  id            Int      @id @default(autoincrement())
+  moodPrincipal String
+  name          String
+  tracks        Json
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([moodPrincipal])
 }
 
 model Recommendation {

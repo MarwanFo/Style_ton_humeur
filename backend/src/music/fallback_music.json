@@ -1,0 +1,87 @@
+{
+  "joyeux": [
+    { 
+      "trackId": "json-joyeux-1", 
+      "title": "Levitating", 
+      "artist": "Dua Lipa",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273bd3548909e462002166e9275"
+    },
+    { 
+      "trackId": "json-joyeux-2", 
+      "title": "Can't Stop The Feeling!", 
+      "artist": "Justin Timberlake",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b27361876664650630787e972986"
+    },
+    { 
+      "trackId": "json-joyeux-3", 
+      "title": "Happy", 
+      "artist": "Pharrell Williams",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b2733d59663809635e982c59a03c"
+    }
+  ],
+  "calme": [
+    { 
+      "trackId": "json-calme-1", 
+      "title": "Sunset Lover", 
+      "artist": "Petit Biscuit",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273e9701a91e70d4f3b7f8f108f"
+    },
+    { 
+      "trackId": "json-calme-2", 
+      "title": "Nightbook", 
+      "artist": "Ludovico Einaudi",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b2734139e559388c2b7d9f784775"
+    },
+    { 
+      "trackId": "json-calme-3", 
+      "title": "Weightless", 
+      "artist": "Marconi Union",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b27376044719875955b412e879a8"
+    }
+  ],
+  "confiant": [
+    { 
+      "trackId": "json-confiant-1", 
+      "title": "Blinding Lights", 
+      "artist": "The Weeknd",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273c511263c91a0c69d8d641151"
+    },
+    { 
+      "trackId": "json-confiant-2", 
+      "title": "HUMBLE.", 
+      "artist": "Kendrick Lamar",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273cdb62372d7f8d689626c9284"
+    },
+    { 
+      "trackId": "json-confiant-3", 
+      "title": "Titanium", 
+      "artist": "David Guetta ft. Sia",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b2734139e559388c2b7d9f784775"
+    }
+  ],
+  "default": [
+    { 
+      "trackId": "json-default-1", 
+      "title": "As It Was", 
+      "artist": "Harry Styles",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273b46f74097655d7f353caab14"
+    },
+    { 
+      "trackId": "json-default-2", 
+      "title": "Stay", 
+      "artist": "The Kid LAROI & Justin Bieber",
+      "previewUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
+      "coverUrl": "https://i.scdn.co/image/ab67616d0000b273410313838063855635"
+    }
+  ]
+}

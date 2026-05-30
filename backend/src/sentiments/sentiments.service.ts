@@ -66,4 +66,13 @@ export class SentimentsService {
       analyzedAt: new Date().toISOString(),
     };
   }
+
+  async getLastAnalysisDate(userId: number): Promise<Date | null> {
+    // Check DailyCheckIn for sentiment data
+    const checkin = await this.prisma.dailyCheckIn.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return checkin ? new Date(checkin.createdAt) : null;
+  }
 }

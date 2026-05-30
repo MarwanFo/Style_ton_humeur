@@ -25,7 +25,10 @@ export class CheckinsService {
       moodSelected?: string;
     },
   ) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profilePreferences: true },
+    });
     if (!user) {
       throw new NotFoundException('Utilisateur non trouvé');
     }
@@ -51,9 +54,11 @@ export class CheckinsService {
       weather = await this.weatherService.getCurrentWeather(data.latitude, data.longitude);
     }
 
+    const musicPreferences = (user.profilePreferences?.musicPreferences as string[]) || [];
+
     const aiResult = await this.aiService.getRecommendations(
       data.answers,
-      { gender: user.gender, age: user.age },
+      { gender: user.gender, age: user.age, musicPreferences },
       weather,
     );
 
@@ -255,7 +260,10 @@ export class CheckinsService {
     userId: number,
     data: { base64Audio: string; mimeType: string }
   ) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { profilePreferences: true },
+    });
     if (!user) {
       throw new NotFoundException('Utilisateur non trouvé');
     }
@@ -270,10 +278,13 @@ export class CheckinsService {
       throw new BadRequestException("Aucun message vocal n'a pu être détecté. Veuillez parler plus clairement et vérifier les permissions de votre micro.");
     }
 
+    const musicPreferences = (user.profilePreferences?.musicPreferences as string[]) || [];
+
     // 2. Get recommendations and generated voice message
     const aiResult = await this.aiService.getVoiceRecommendations(transcript, {
       gender: user.gender,
       age: user.age,
+      musicPreferences,
     });
 
     // 3. Clear any existing check-in of the day (like questionnaire) to replace it
@@ -537,6 +548,35 @@ export class CheckinsService {
         create: b,
       });
     }
+  }
+
+  async updateMusicFeedback(
+    userId: number,
+    recommendationId: number,
+    data: { trackIndex: number; liked?: boolean; disliked?: boolean; isFavorite?: boolean },
+  ) {
+    const recommendation = await this.prisma.recommendation.findFirst({
+      where: { id: recommendationId, userId },
+    });
+    if (!recommendation) {
+      throw new NotFoundException('Recommandation non trouvée');
+    }
+
+    const musicArray = (recommendation.music as any[]) || [];
+    if (data.trackIndex < 0 || data.trackIndex >= musicArray.length) {
+      throw new BadRequestException('Index de morceau invalide');
+    }
+
+    if (data.liked !== undefined) musicArray[data.trackIndex].liked = data.liked;
+    if (data.disliked !== undefined) musicArray[data.trackIndex].disliked = data.disliked;
+    if (data.isFavorite !== undefined) musicArray[data.trackIndex].isFavorite = data.isFavorite;
+
+    await this.prisma.recommendation.update({
+      where: { id: recommendationId },
+      data: { music: musicArray },
+    });
+
+    return { success: true, music: musicArray };
   }
 
   async getStreak(userId: number) {
