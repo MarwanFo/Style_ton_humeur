@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Users from './pages/Users';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import './App.css';
@@ -48,6 +49,7 @@ export default function App() {
         <Route element={<ProtectedRoute />}>
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/users" element={<Users />} />
             {/* Fallbacks */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

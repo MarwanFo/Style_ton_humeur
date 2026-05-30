@@ -35,7 +35,6 @@ export default function Sidebar() {
         <NavLink 
           to="/users" 
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          onClick={(e) => e.preventDefault()}
         >
           <Users size={18} />
           <span>Utilisateurs</span>
