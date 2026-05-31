@@ -22,7 +22,7 @@ export class UsersController {
       displayName: user.displayName,
       gender: user.gender,
       age: user.age,
-      twoFactorEnabled: user.twoFactorEnabled,
+      twoFactorEnabled: (user as any).twoFactorEnabled,
       createdAt: user.createdAt,
     };
   }

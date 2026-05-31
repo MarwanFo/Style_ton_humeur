@@ -13,7 +13,7 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Authentification requise');
     }
 
-    const dbUser = await this.usersService.findById(user.userId);
+    const dbUser = await this.usersService.findById(user.userId) as any;
     if (!dbUser || dbUser.role !== 'ADMIN') {
       throw new ForbiddenException('Accès réservé aux administrateurs');
     }

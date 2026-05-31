@@ -7,24 +7,15 @@ export class AdminService {
   constructor(private prisma: PrismaService) {}
 
   async getStats() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const [totalUsers, premiumUsers, checkInsToday, streaks, moodGroups] = await Promise.all([
+    const [total_users, total_checkins, streaks, total_badges_unlocked, moodGroups] = await Promise.all([
       this.prisma.user.count(),
-      this.prisma.user.count({ where: { plan: 'PREMIUM' } }),
-      this.prisma.dailyCheckIn.count({
-        where: {
-          createdAt: {
-            gte: today,
-          },
-        },
-      }),
+      this.prisma.dailyCheckIn.count(),
       this.prisma.streak.aggregate({
         _avg: {
           currentStreak: true,
         },
       }),
+      this.prisma.userBadge.count(),
       this.prisma.dailyCheckIn.groupBy({
         by: ['moodSelected'],
         _count: {
@@ -33,25 +24,32 @@ export class AdminService {
       }),
     ]);
 
-    const moodDistribution: Record<string, number> = {
+    const mood_distribution: Record<string, number> = {
       joyeux: 0,
       calme: 0,
-      fatigué: 0,
+      confiant: 0,
       stressé: 0,
-      audacieux: 0,
+      nostalgique: 0,
     };
 
     moodGroups.forEach((group) => {
       const mood = group.moodSelected ? group.moodSelected.toLowerCase() : 'calme';
-      moodDistribution[mood] = (moodDistribution[mood] || 0) + group._count.id;
+      // Mappage si nécessaire pour correspondre aux clés attendues
+      let mappedMood = mood;
+      if (mood === 'audacieux') mappedMood = 'confiant';
+      if (mood === 'fatigué') mappedMood = 'nostalgique';
+      
+      if (mood_distribution.hasOwnProperty(mappedMood)) {
+        mood_distribution[mappedMood] += group._count.id;
+      }
     });
 
     return {
-      totalUsers,
-      premiumUsers,
-      avgStreak: streaks._avg.currentStreak ? Math.round(streaks._avg.currentStreak * 10) / 10 : 0,
-      checkInsToday,
-      moodDistribution,
+      total_users,
+      total_checkins,
+      avg_streak: streaks._avg.currentStreak ? Math.round(streaks._avg.currentStreak * 10) / 10 : 0,
+      total_badges_unlocked,
+      mood_distribution,
     };
   }
 
