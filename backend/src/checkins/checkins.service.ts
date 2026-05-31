@@ -580,6 +580,10 @@ export class CheckinsService {
   }
 
   async getStreak(userId: number) {
+    const userExists = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!userExists) {
+      throw new NotFoundException('Utilisateur introuvable. Veuillez vous reconnecter.');
+    }
     let streak = await this.prisma.streak.findUnique({ where: { userId } });
     if (!streak) {
       streak = await this.prisma.streak.create({

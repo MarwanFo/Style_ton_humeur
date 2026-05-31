@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, StyleSheet, FlatList, Pressable, Modal, 
-  TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform 
+  TextInput, Alert, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView 
 } from 'react-native';
 import { Stack } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -170,7 +170,7 @@ export default function BadgesScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Catalogue Badges</Text>
         <Pressable onPress={() => handleOpenModal()} style={styles.addBtn}>
-          <Ionicons name="plus" size={20} color="#FFF" />
+          <Ionicons name="add" size={20} color="#FFF" />
           <Text style={styles.addBtnText}>Nouveau</Text>
         </Pressable>
       </View>
@@ -264,8 +264,6 @@ export default function BadgesScreen() {
     </View>
   );
 }
-
-import { ScrollView } from 'react-native-gesture-handler';
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 100 },
