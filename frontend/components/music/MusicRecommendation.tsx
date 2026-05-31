@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { MusicTrackItem, useMusicRecommendationState } from '@/hooks/useMusicRecommendationState';
 import { AudioPlayer } from './AudioPlayer';
 import { MoodQuestionnaireModal } from './MoodQuestionnaireModal';
+import { AutoMusicTab } from './AutoMusicTab';
 import { useMusicRecommendations } from '@/hooks/useMusicRecommendations';
 
 type MusicRecommendationProps = {

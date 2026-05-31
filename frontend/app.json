@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "aura-studio",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash-icon.png",
@@ -14,19 +14,18 @@
     },
     "ios": {
       "supportsTablet": true,
-      "infoPlist": {
-        "LSApplicationQueriesSchemes": ["spotify"]
-      }
+      "bundleIdentifier": "com.kafab.aura",
+      "LSApplicationQueriesSchemes": ["spotify"]
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "predictiveBackGestureEnabled": false,
+      "package": "com.kafab.aura",
       "intentFilters": [
         {
-          "action": "android.intent.action.VIEW",
+          "action": "VIEW",
           "data": {
             "scheme": "spotify"
           }

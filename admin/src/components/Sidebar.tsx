@@ -55,11 +55,9 @@ export default function Sidebar() {
         <NavLink 
           to="/badges" 
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          onClick={(e) => e.preventDefault()}
         >
           <Award size={18} />
           <span>Catalogue Badges</span>
-          <span className="link-badge">Pro</span>
         </NavLink>
       </nav>
 

@@ -1,32 +1,33 @@
 import React from 'react';
-import { Users, ShieldAlert, Award, Calendar, Flame, TrendingUp } from 'lucide-react';
+import { Users, ShieldAlert, Award, Calendar, Flame, TrendingUp, RefreshCcw } from 'lucide-react';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement } from 'chart.js';
+import { useDashboardStats } from '../hooks/useDashboardStats';
 
 // Register ChartJS elements
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement);
 
 export default function Dashboard() {
-  // Empty states / 0 values as requested by user
-  const stats = {
-    totalUsers: 0,
-    premiumUsers: 0,
-    activeStreaks: 0,
-    totalScansToday: 0
-  };
+  const { stats, loading, error, refresh } = useDashboardStats();
 
-  // Chart configuration for empty moods distribution
+  // Chart configuration for moods distribution
   const doughnutData = {
-    labels: ['Joyeux', 'Calme', 'Fatigué', 'Stressé', 'Audacieux'],
+    labels: ['Joyeux', 'Calme', 'Confiant', 'Stressé', 'Nostalgique'],
     datasets: [
       {
-        data: [0, 0, 0, 0, 0], // Empty state / 0
+        data: stats ? [
+          stats.mood_distribution.joyeux,
+          stats.mood_distribution.calme,
+          stats.mood_distribution.confiant,
+          stats.mood_distribution.stressé,
+          stats.mood_distribution.nostalgique
+        ] : [0, 0, 0, 0, 0],
         backgroundColor: [
-          'rgba(139, 92, 246, 0.6)', // Violet
-          'rgba(236, 72, 153, 0.6)',  // Rose
-          'rgba(99, 102, 241, 0.6)',  // Indigo
-          'rgba(245, 158, 11, 0.6)',  // Ambre
-          'rgba(16, 185, 129, 0.6)'   // Emeraude
+          'rgba(139, 92, 246, 0.6)', // Violet (Joyeux)
+          'rgba(16, 185, 129, 0.6)',  // Emeraude (Calme)
+          'rgba(99, 102, 2 indigo)',  // Indigo (Confiant)
+          'rgba(245, 158, 11, 0.6)',  // Ambre (Stressé)
+          'rgba(236, 72, 153, 0.6)'   // Rose (Nostalgique)
         ],
         borderColor: 'rgba(255, 255, 255, 0.1)',
         borderWidth: 1,
@@ -39,7 +40,7 @@ export default function Dashboard() {
     datasets: [
       {
         label: 'Scans par jour',
-        data: [0, 0, 0, 0, 0, 0, 0], // 0 values
+        data: [0, 0, 0, 0, 0, 0, 0], // 0 values for now
         backgroundColor: 'rgba(139, 92, 246, 0.5)',
         borderColor: '#8B5CF6',
         borderWidth: 1,
@@ -62,6 +63,14 @@ export default function Dashboard() {
     }
   };
 
+  if (loading && !stats) {
+    return (
+      <div className="flex-center" style={{ height: '80vh' }}>
+        <RefreshCcw className="animate-spin text-purple-500" size={40} />
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-content">
       <div className="dashboard-title-row">
@@ -69,9 +78,15 @@ export default function Dashboard() {
           <h1 className="dashboard-page-title">Vue d'ensemble</h1>
           <p className="dashboard-page-subtitle">Statistiques générales de la plateforme Aura Studio.</p>
         </div>
-        <div className="date-badge glass-panel">
-          <Calendar size={16} />
-          <span>Aujourd'hui, {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+        <div className="flex gap-4">
+          <button onClick={refresh} className="date-badge glass-panel hover:bg-white/10 transition-colors">
+            <RefreshCcw size={16} />
+            <span>Actualiser</span>
+          </button>
+          <div className="date-badge glass-panel">
+            <Calendar size={16} />
+            <span>Aujourd'hui, {new Date().toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>
+          </div>
         </div>
       </div>
 
@@ -85,47 +100,47 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="stat-card-body">
-            <h2 className="stat-value">{stats.totalUsers}</h2>
-            <p className="stat-trend neutral">Aucun inscrit enregistré</p>
+            <h2 className="stat-value">{stats?.total_users || 0}</h2>
+            <p className="stat-trend neutral">Utilisateurs enregistrés</p>
           </div>
         </div>
 
         <div className="stat-card glass-panel">
           <div className="stat-card-header">
-            <span className="stat-label">Abonnés Premium</span>
+            <span className="stat-label">Daily Check-ins</span>
             <div className="stat-icon-wrapper pink">
               <Award size={20} />
             </div>
           </div>
           <div className="stat-card-body">
-            <h2 className="stat-value">{stats.premiumUsers}</h2>
-            <p className="stat-trend neutral">0% du total de la plateforme</p>
+            <h2 className="stat-value">{stats?.total_checkins || 0}</h2>
+            <p className="stat-trend neutral">Total des interactions</p>
           </div>
         </div>
 
         <div className="stat-card glass-panel">
           <div className="stat-card-header">
-            <span className="stat-label">Séries actives (Streak)</span>
+            <span className="stat-label">Moyenne Streak</span>
             <div className="stat-icon-wrapper indigo">
               <Flame size={20} />
             </div>
           </div>
           <div className="stat-card-body">
-            <h2 className="stat-value">{stats.activeStreaks}</h2>
-            <p className="stat-trend neutral">Moyenne de 0 jour/utilisateur</p>
+            <h2 className="stat-value">{stats?.avg_streak || 0} j</h2>
+            <p className="stat-trend neutral">Série moyenne par utilisateur</p>
           </div>
         </div>
 
         <div className="stat-card glass-panel">
           <div className="stat-card-header">
-            <span className="stat-label">Analyses d'humeur aujourd'hui</span>
+            <span className="stat-label">Badges Débloqués</span>
             <div className="stat-icon-wrapper green">
               <TrendingUp size={20} />
             </div>
           </div>
           <div className="stat-card-body">
-            <h2 className="stat-value">{stats.totalScansToday}</h2>
-            <p className="stat-trend neutral">Aucun scan IA effectué aujourd'hui</p>
+            <h2 className="stat-value">{stats?.total_badges_unlocked || 0}</h2>
+            <p className="stat-trend neutral">Récompenses obtenues</p>
           </div>
         </div>
       </div>
@@ -136,9 +151,11 @@ export default function Dashboard() {
           <h3 className="chart-card-title">Distribution des Humeurs</h3>
           <div className="chart-container flex-center" style={{ height: '240px', position: 'relative' }}>
             <Doughnut data={doughnutData} options={chartOptions} />
-            <div className="chart-empty-overlay flex-center">
-              <p className="empty-message">Aucune donnée disponible</p>
-            </div>
+            {(!stats || Object.values(stats.mood_distribution).every(v => v === 0)) && (
+              <div className="chart-empty-overlay flex-center">
+                <p className="empty-message">Aucune donnée disponible</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -147,23 +164,8 @@ export default function Dashboard() {
           <div className="chart-container flex-center" style={{ height: '240px', position: 'relative' }}>
             <Bar data={barData} options={chartOptions} />
             <div className="chart-empty-overlay flex-center">
-              <p className="empty-message">Aucune donnée disponible</p>
+              <p className="empty-message">Données à venir</p>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Recent Check-ins List (Empty State) */}
-      <div className="recent-checkins-section glass-panel">
-        <div className="section-header-row">
-          <h3 className="section-title">Dernières Analyses d'Humeur Mobile</h3>
-          <span className="badge-total">0 Enregistré</span>
-        </div>
-        <div className="table-wrapper empty flex-center">
-          <div className="empty-state-card">
-            <ShieldAlert size={48} className="empty-icon" />
-            <p className="empty-title">Aucune analyse d'humeur récente</p>
-            <p className="empty-subtitle">Les looks et les analyses d'humeur générés par les utilisateurs s'afficheront ici en temps réel.</p>
           </div>
         </div>
       </div>

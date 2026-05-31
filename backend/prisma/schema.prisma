@@ -157,6 +157,7 @@ model Badge {
   code        String       @unique
   name        String
   description String
+  icon        String       @default("✨")
   criteria    Json
 
   userBadges  UserBadge[]

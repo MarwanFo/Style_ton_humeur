@@ -8,11 +8,10 @@ type AudioPlayerProps = {
   isPlaying: boolean;
   onPlayStateChange: (isPlaying: boolean) => void;
   onSearchFallback?: () => void;
-  isFallback?: boolean;
   trackId?: string;
 };
 
-export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearchFallback, isFallback, trackId }: AudioPlayerProps) {
+export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearchFallback, trackId }: AudioPlayerProps) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(false);
@@ -26,26 +25,14 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
   }, [sound]);
 
   const loadAndPlaySound = async () => {
-    let targetUrl = previewUrl;
-    let usingFallbackDemo = false;
-
-    if (!targetUrl) {
-      usingFallbackDemo = true;
-      let songIndex = 1;
-      const seed = trackId || "fallback_default";
-      let sum = 0;
-      for (let i = 0; i < seed.length; i++) {
-        sum += seed.charCodeAt(i);
-      }
-      songIndex = (sum % 12) + 1;
-      targetUrl = `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${songIndex}.mp3`;
-    }
+    if (!previewUrl) return;
 
     setIsLoading(true);
     setError(false);
-    console.log('[AudioPlayer] Tentative de lecture:', targetUrl);
+    console.log('[AudioPlayer] Tentative de lecture:', previewUrl);
 
     try {
+      // Configuration globale de l'audio
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
         staysActiveInBackground: false,
@@ -58,13 +45,10 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
         await sound.unloadAsync();
       }
 
+      // Tentative de lecture de l'URL Spotify
       try {
-        if (usingFallbackDemo) {
-          throw new Error("No preview URL provided by Spotify");
-        }
-
         const { sound: newSound, status } = await Audio.Sound.createAsync(
-          { uri: targetUrl },
+          { uri: previewUrl },
           { shouldPlay: true, volume: 1.0 },
           onPlaybackStatusUpdate
         );
@@ -78,14 +62,8 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
       } catch (err: any) {
         console.warn('[AudioPlayer] Échec URL Spotify, tentative Fallback Immuable...', err.message);
         
-        let songIndex = 1;
-        const seed = previewUrl || trackId || "default";
-        let sum = 0;
-        for (let i = 0; i < seed.length; i++) {
-          sum += seed.charCodeAt(i);
-        }
-        songIndex = (sum % 12) + 1;
-        const FALLBACK_URL = `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${songIndex}.mp3`;
+        // FALLBACK IMMUABLE : Si Spotify 404, on joue un son de test stable
+        const FALLBACK_URL = 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
         
         const { sound: fallbackSound, status: fbStatus } = await Audio.Sound.createAsync(
           { uri: FALLBACK_URL },
@@ -96,10 +74,10 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
         if (fbStatus.isLoaded) {
           setSound(fallbackSound);
           onPlayStateChange(true);
-          console.log(`[AudioPlayer] Lecture Fallback OK (Piste ${songIndex})`);
+          console.log('[AudioPlayer] Lecture Fallback OK');
           Alert.alert(
             "Mode Démonstration", 
-            `Extrait Spotify indisponible. Lecture de la piste de secours #${songIndex} pour la démonstration.`
+            "Lien Spotify expiré. Lecture d'une piste de secours pour la démonstration."
           );
         }
       }
@@ -134,6 +112,18 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
   };
 
   const handlePress = () => {
+    if (!previewUrl) {
+      Alert.alert(
+        "Indisponible",
+        "Spotify ne fournit pas d'extrait pour ce titre. Voulez-vous le rechercher ?",
+        [
+          { text: "Annuler", style: "cancel" },
+          { text: "🔍 Rechercher", onPress: () => onSearchFallback && onSearchFallback() }
+        ]
+      );
+      return;
+    }
+
     if (isPlaying) {
       pauseSound();
     } else {
@@ -149,7 +139,8 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
     <Pressable
       style={({ pressed }) => [
         styles.playButton, 
-        pressed && { opacity: 0.8 },
+        pressed && previewUrl && { opacity: 0.8 },
+        !previewUrl && styles.playButtonDisabled
       ]}
       onPress={handlePress}
       disabled={isLoading}
@@ -159,6 +150,8 @@ export function AudioPlayer({ previewUrl, isPlaying, onPlayStateChange, onSearch
         <ActivityIndicator size={20} color="#8B5CF6" />
       ) : error ? (
         <Ionicons name="alert-circle" size={24} color="#EF4444" />
+      ) : !previewUrl ? (
+        <Ionicons name="play-outline" size={24} color="#D1D5DB" />
       ) : isPlaying ? (
         <Ionicons name="pause" size={24} color="#8B5CF6" />
       ) : (
