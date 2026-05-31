@@ -778,6 +778,21 @@
   box-shadow: 0 2px 8px rgba(245, 158, 11, 0.08);
 }
 
+/* Emotion badge colours used in Sentiments page */
+.badge-tier.danger-mood {
+  background: rgba(239, 68, 68, 0.1);
+  color: #F87171;
+  border: 1.5px solid rgba(239, 68, 68, 0.22);
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.08);
+}
+
+.badge-tier.active-mood {
+  background: rgba(99, 102, 241, 0.1);
+  color: #818CF8;
+  border: 1.5px solid rgba(99, 102, 241, 0.22);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+}
+
 .streak-counter {
   display: inline-flex;
   align-items: center;

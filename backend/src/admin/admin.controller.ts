@@ -2,11 +2,13 @@ import { Controller, Get, Post, Patch, Delete, Param, Body, ConflictException, N
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
 
-@Controller('admin/users')
+@Controller('admin')
 export class AdminController {
   constructor(private prisma: PrismaService) {}
 
-  @Get()
+  // ===================== USERS CRUD =====================
+
+  @Get('users')
   async getAllUsers() {
     const users = await this.prisma.user.findMany({
       include: {
@@ -35,7 +37,7 @@ export class AdminController {
     }));
   }
 
-  @Post()
+  @Post('users')
   async createUser(
     @Body()
     body: {
@@ -93,7 +95,7 @@ export class AdminController {
     };
   }
 
-  @Patch(':id')
+  @Patch('users/:id')
   async updateUser(
     @Param('id') id: string,
     @Body()
@@ -173,7 +175,7 @@ export class AdminController {
     };
   }
 
-  @Delete(':id')
+  @Delete('users/:id')
   async deleteUser(@Param('id') id: string) {
     const userId = parseInt(id, 10);
     const user = await this.prisma.user.findUnique({
@@ -185,6 +187,56 @@ export class AdminController {
 
     await this.prisma.user.delete({
       where: { id: userId },
+    });
+
+    return { success: true };
+  }
+
+  // ===================== SENTIMENT SCANS CRUD =====================
+
+  @Get('sentiments')
+  async getAllSentiments() {
+    const scans = await this.prisma.sentimentScan.findMany({
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return scans.map((scan) => ({
+      id: scan.id,
+      userId: scan.userId,
+      userDisplayName: scan.user?.displayName || 'Utilisateur inconnu',
+      userEmail: scan.user?.email || 'N/A',
+      dominantEmotion: scan.dominantEmotion,
+      verdict: scan.verdict,
+      indicators: scan.indicators,
+      facialReading: scan.facialReading,
+      conseilAura: scan.conseilAura,
+      // imageUrl intentionally excluded — user photos/voice are private
+      createdAt: scan.createdAt,
+    }));
+  }
+
+  @Delete('sentiments/:id')
+  async deleteSentiment(@Param('id') id: string) {
+    const scanId = parseInt(id, 10);
+    const scan = await this.prisma.sentimentScan.findUnique({
+      where: { id: scanId },
+    });
+    if (!scan) {
+      throw new NotFoundException('Analyse de sentiment non trouvée.');
+    }
+
+    await this.prisma.sentimentScan.delete({
+      where: { id: scanId },
     });
 
     return { success: true };
