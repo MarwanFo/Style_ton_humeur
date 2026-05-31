@@ -29,4 +29,3 @@ import { BadgesModule } from './badges/badges.module';
   providers: [AppService],
 })
 export class AppModule {}
-

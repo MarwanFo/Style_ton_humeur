@@ -25,6 +25,7 @@ model User {
   twoFactorEnabled   Boolean             @default(false)
   role               String              @default("USER") // "USER" | "ADMIN"
   plan               String              @default("FREE") // "FREE" | "PREMIUM"
+  tier               String              @default("FREE")
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   
@@ -36,6 +37,7 @@ model User {
   musicRecommendations MusicRecommendation[]
   musicFeedbacks     MusicFeedback[]
   dailyMoodQuestionnaires DailyMoodQuestionnaire[]
+  sentimentScans     SentimentScan[]
 }
 
 model ProfilePreference {
@@ -173,4 +175,18 @@ model UserBadge {
   badge       Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
 
   @@id([userId, badgeId])
+}
+
+model SentimentScan {
+  id              Int      @id @default(autoincrement())
+  userId          Int
+  dominantEmotion String
+  verdict         String
+  indicators      Json
+  facialReading   String
+  conseilAura     String
+  imageUrl        String?
+  createdAt       DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

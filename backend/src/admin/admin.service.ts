@@ -202,4 +202,48 @@ export class AdminService {
     await this.prisma.user.delete({ where: { id } });
     return { success: true, message: 'Utilisateur supprimé avec succès.' };
   }
+
+  async getSentiments() {
+    const scans = await this.prisma.sentimentScan.findMany({
+      include: {
+        user: {
+          select: {
+            displayName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    return scans.map((scan) => ({
+      id: scan.id,
+      userId: scan.userId,
+      userDisplayName: scan.user?.displayName || 'Utilisateur inconnu',
+      userEmail: scan.user?.email || 'N/A',
+      dominantEmotion: scan.dominantEmotion,
+      verdict: scan.verdict,
+      indicators: scan.indicators,
+      facialReading: scan.facialReading,
+      conseilAura: scan.conseilAura,
+      createdAt: scan.createdAt,
+    }));
+  }
+
+  async deleteSentiment(id: number) {
+    const scan = await this.prisma.sentimentScan.findUnique({
+      where: { id },
+    });
+    if (!scan) {
+      throw new NotFoundException('Analyse de sentiment non trouvée.');
+    }
+
+    await this.prisma.sentimentScan.delete({
+      where: { id },
+    });
+
+    return { success: true };
+  }
 }

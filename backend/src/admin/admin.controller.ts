@@ -55,15 +55,33 @@ export class AdminController {
       gender?: string;
       role?: string;
       plan?: string;
+      tier?: string;
       currentStreak?: number;
       maxStreak?: number;
     },
   ) {
-    return this.adminService.updateUser(id, body);
+    // Standardize 'tier' and 'plan' so they are both in sync
+    const planValue = body.plan || body.tier;
+    const updatePayload = {
+      ...body,
+      plan: planValue,
+      tier: planValue,
+    };
+    return this.adminService.updateUser(id, updatePayload);
   }
 
   @Delete('users/:id')
   async deleteUser(@Param('id', ParseIntPipe) id: number) {
     return this.adminService.deleteUser(id);
+  }
+
+  @Get('sentiments')
+  async getAllSentiments() {
+    return this.adminService.getSentiments();
+  }
+
+  @Delete('sentiments/:id')
+  async deleteSentiment(@Param('id', ParseIntPipe) id: number) {
+    return this.adminService.deleteSentiment(id);
   }
 }

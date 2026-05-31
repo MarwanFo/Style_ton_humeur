@@ -169,33 +169,35 @@ Structure attendue :
   }
 
   /**
-   * Transcribes audio using Hugging Face Whisper Large v3 free API
+   * Transcribes audio using Gemini 2.5 Flash multimodal
    */
   async transcribeAudio(base64Audio: string, mimeType: string): Promise<string> {
-    try {
-      this.logger.log('Starting speech transcription with Gemini 2.5 Flash...');
-      
-      const model = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      
-      let cleanedMimeType = mimeType;
-      if (mimeType.includes('m4a')) {
-        cleanedMimeType = 'audio/m4a';
-      }
+    // Normalize MIME type — M4A is technically an MP4 container, audio/mp4 is more universally accepted
+    let cleanedMimeType = 'audio/mp4';
+    if (mimeType.includes('wav')) cleanedMimeType = 'audio/wav';
+    else if (mimeType.includes('mp3') || mimeType.includes('mpeg')) cleanedMimeType = 'audio/mp3';
+    else if (mimeType.includes('webm')) cleanedMimeType = 'audio/webm';
+    else if (mimeType.includes('ogg')) cleanedMimeType = 'audio/ogg';
+    else if (mimeType.includes('flac')) cleanedMimeType = 'audio/flac';
+    else if (mimeType.includes('aac')) cleanedMimeType = 'audio/aac';
 
+    this.logger.log(`Starting audio transcription. Original mimeType="${mimeType}" → using "${cleanedMimeType}"`);
+
+    const doTranscribe = async (): Promise<string> => {
+      const model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
       const audioPart = {
-        inlineData: {
-          data: base64Audio,
-          mimeType: cleanedMimeType
-        }
+        inlineData: { data: base64Audio, mimeType: cleanedMimeType },
       };
-
       const response = await model.generateContent([
-        "Transcris exactement et uniquement les paroles de cet enregistrement audio en français. Ne fais aucun commentaire personnel, n'ajoute pas de salutations ni d'introduction. Rends uniquement le texte dit dans l'audio. Si l'enregistrement contient du silence ou aucun mot intelligible, renvoie une chaîne vide.",
-        audioPart
+        "Transcris exactement et uniquement les paroles de cet enregistrement audio en français. Ne fais aucun commentaire personnel, n'ajoute pas de salutations ni d'introduction. Rends uniquement le texte dit dans l'audio. Si l'enregistrement contient du silence ou aucun mot intelligible, renvoie exactement la chaîne vide.",
+        audioPart,
       ]);
-      
-      let transcription = response.response.text() || '';
-      
+      return response.response.text() || '';
+    };
+
+    try {
+      let transcription = await doTranscribe();
+
       const cleanTranscription = transcription.trim().replace(/^["'\s\[\]\\]+|["'\s\[\]\\]+$/g, '');
       const hallucinations = [
         /thanks for watching/i,
@@ -203,13 +205,11 @@ Structure attendue :
         /merci beaucoup/i,
         /^bye$/i,
         /subtitles/i,
-        /sous-titres/i
+        /sous-titres/i,
       ];
 
-      let isHallucination = false;
-      if (cleanTranscription.length === 0) {
-        isHallucination = true;
-      } else {
+      let isHallucination = cleanTranscription.length === 0;
+      if (!isHallucination) {
         for (const pattern of hallucinations) {
           if (pattern.test(cleanTranscription) && cleanTranscription.length < 25) {
             isHallucination = true;
@@ -219,16 +219,16 @@ Structure attendue :
       }
 
       if (isHallucination) {
-        this.logger.warn(`Filtered transcription hallucination/silence: "${transcription}"`);
-        transcription = '';
-      } else {
-        this.logger.log(`Transcription result: "${transcription}"`);
+        this.logger.warn(`Filtered hallucination/silence: "${transcription}"`);
+        return '';
       }
 
+      this.logger.log(`Transcription success: "${transcription.substring(0, 80)}..."`);
       return transcription;
-    } catch (error) {
-      this.logger.error('Error during audio transcription with Gemini', error);
-      throw new Error('Failed to transcribe audio.');
+    } catch (err: any) {
+      this.logger.error(`Audio transcription failed (mimeType=${cleanedMimeType}): ${err?.message}`);
+      // Return empty string — caller will handle fallback gracefully
+      return '';
     }
   }
 
@@ -483,6 +483,75 @@ RÈGLES CRUCIALES :
     } catch (error) {
       this.logger.error("Erreur lors de l'analyse sentimentale avec Nvidia Llama", error);
       return this.getFallbackSentiment();
+    }
+  }
+
+  async analyzeVoiceSentiment(
+    transcript: string,
+    userProfile: { gender: string; age: number; displayName?: string },
+    moodSelected?: string,
+  ): Promise<any> {
+    try {
+      const moodContext = moodSelected
+        ? `L'utilisateur a pré-sélectionné son humeur comme : "${moodSelected}". Adapte-toi subtilement à cette indication.`
+        : `Aucun mood pré-sélectionné.`;
+
+      const prompt = `
+Tu es un expert en psychologie cognitive, en analyse de ton vocal et en décodage d'affect, intégré au module "Sentiments" de l'application Aura Studio.
+L'utilisateur s'est exprimé par message vocal pour décrire son état d'esprit. Voici la transcription exacte :
+"${transcript}"
+
+Profil de l'utilisateur : ${userProfile.gender}, ${userProfile.age} ans, prénom : ${userProfile.displayName || 'Utilisateur'}.
+${moodContext}
+
+Référentiel des Sentiments (Ta matrice de détection) :
+1. États Positifs & Énergie : Joie/Enthousiasme, Rayonnant, Fierté/Confiance.
+2. États Calmes & Focus : Sérénité/Paix, Concentration/Focus, Pensif/Méditatif.
+3. États de Fatigue & Stress : Fatigue/Épuisement, Stress/Anxiété, Ennui/Lassitude.
+4. Émotions Spontanées : Surprise/Étonnement, Confusion/Hésitation.
+
+Directives :
+1. Analyse les micro-expressions verbales, la fatigue psychologique et les émotions dans ces mots.
+2. Tu dois renvoyer STRICTEMENT un JSON valide (aucun texte d'explication en dehors du JSON, pas de balise markdown, juste le JSON brut) respectant cette structure :
+{
+  "dominant_emotion": "Sérénité",
+  "verdict": "Phrase percutante résumant l'ambiance du message vocal (en français, chaleureuse et moderne)",
+  "indicators": [
+    { "label": "Sérénité", "percentage": 70 },
+    { "label": "Fatigue", "percentage": 30 }
+  ],
+  "facial_reading": "Explication vocale brève décrivant la cadence et l'expression détectée dans la voix (2-3 lignes max)",
+  "conseil_aura": "Conseil actionnable et positif pour réaligner ou booster son Aura (2-3 lignes max)"
+}
+
+Règles :
+- Le tableau "indicators" doit contenir entre 2 et 4 éléments dont les pourcentages totalisent 100%.
+- Formule TOUT en français.`;
+
+      const model = this.genAI.getGenerativeModel({ 
+        model: "gemini-2.5-flash",
+        generationConfig: {
+          temperature: 0.3,
+          responseMimeType: "application/json",
+        }
+      });
+
+      const response = await model.generateContent([prompt]);
+      const text = response.response.text();
+      const cleanedText = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      return JSON.parse(cleanedText);
+    } catch (error) {
+      this.logger.error("Erreur lors de l'analyse vocale avec Gemini", error);
+      return {
+        dominant_emotion: 'Sérénité',
+        verdict: "Votre voix dégage une agréable sensation de tranquillité et de recul.",
+        indicators: [
+          { label: 'Sérénité', percentage: 70 },
+          { label: 'Focus', percentage: 30 }
+        ],
+        facial_reading: "La cadence calme de vos mots traduit une belle clarté d'esprit et une respiration posée.",
+        conseil_aura: "Poursuivez sur cette voie, accordez-vous un instant de respiration consciente ou une courte écoute musicale."
+      };
     }
   }
 

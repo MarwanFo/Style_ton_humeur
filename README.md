@@ -1,27 +1,30 @@
 # 🌟 Style ton Humeur (Pocket Stylist & Fitting Room AI)
 
+> **Plateforme intelligente d'aide au choix et de recommandation de tenues, routines maquillage, et playlists musicales adaptées au mood et à la météo journalière.**
+
+Ce projet est développé avec passion dans le cadre de l'Examen Mobile Académique par :
+* **BENTALEB Chaymae** (Directrice Frontend & UI/UX)
+* **FARIDI Marwane** (Directeur Backend, Données & Métier)
+* **KAF Abdessamad** (Directeur IA & Intégrations)
+
+---
+
 ![Application Version](https://img.shields.io/badge/version-1.1.0-brightgreen.svg)
 ![React Native](https://img.shields.io/badge/React_Native-Expo_54-black?logo=react)
 ![NestJS](https://img.shields.io/badge/Backend-NestJS_11-E0234E?logo=nestjs)
-![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL-316192?logo=postgresql)
+![PostgreSQL](https://img.shields.io/badge/Database-PostgreSQL_/_MySQL-316192?logo=postgresql)
 ![AI-Powered](https://img.shields.io/badge/AI-Gemini_2.5_Flash-orange?logo=google-gemini)
 
 **Style ton Humeur** est une application mobile intelligente, immersive et dynamique qui aide les utilisateurs à obtenir des recommandations personnalisées (tenues, maquillage, et musique) en fonction de leur humeur et de leur contexte quotidien, en combinant la puissance de l'Intelligence Artificielle générative, de l'audio et de la vision par ordinateur.
 
 ---
 
-## 👥 Membres de l'Équipe
-* **FARIDI Marwane**
-* **BENTALEB Chaymae**
-* **KAF Abdessamad**
-
----
-
 ## ✨ Fonctionnalités Principales (Premium Edition)
 
-### 1. 🤖 Module IA de Détection d'Humeur
+### 1. 🤖 Module IA de Détection d'Humeur & Sentiments
 * **Questionnaire Interactif (Aura Quiz)** : Parcours fluide à 4 étapes (Énergie, Envie, Contexte de la journée, Style artistique).
 * **Assistant Vocal Styliste (Pocket Stylist IA)** : Parlez librement à l'application. Votre voix est enregistrée, transcrite et analysée par **Google Gemini 2.5 Flash** pour détecter instantanément votre humeur et composer vos looks.
+* **Scan Facial / Vocal de Sentiments** : Suivez votre humeur quotidienne grâce au scan photo de selfie ou de voix. Analyse complète des sentiments avec historiques et graphes de comparaison.
 
 ### 2. 🗣️ Synthèse Vocale Premium (Neural TTS)
 * Vos recommandations de style s'accompagnent d'une **note vocale personnalisée de votre styliste**.
@@ -29,8 +32,8 @@
 
 ### 3. 👗 Essayage Virtuel & Cabine d'Ajustement (Fitting Room)
 * Visualisation de **3 tenues stylisées** (Glassmorphism design).
-* **Cabine d'Essayage Virtuelle** : Importez ou prenez une photo de votre silhouette de la tête aux pieds. L'algorithme projette la tenue recommandée directement sur votre corps.
-* Proposition de **2 routines makeup** (Naturel & Intense) adaptées à l'humeur.
+* **Cabine d'Essayage Virtuelle (VTON)** : Importez ou prenez une photo de votre silhouette. L'algorithme projette la tenue recommandée directly sur votre corps avec l'IA.
+* Sauvegarde persistante de vos combinaisons de cabine d'essayage préférées et de vos photos personnalisées.
 
 ### 4. 📈 Gamification & Rétention
 * **Système de Streak (Série active)** de check-in journalier.
@@ -51,8 +54,8 @@
 * **UI & Audio/Vidéo** : Vanilla StyleSheets, `react-native-reanimated` pour des transitions fluides, `expo-av` pour le traitement audio (enregistrement et lecture TTS), `expo-image-picker` pour l'ajustement cabine.
 
 ### Backend & API
-* **Base de données** : PostgreSQL avec l'ORM **Prisma**.
-* **Framework** : NestJS (Node.js) organisé en modules découplés (`Users`, `Auth`, `Checkins`, `Weather`, `Ai`).
+* **Base de données** : PostgreSQL ou MySQL (via Prisma ORM).
+* **Framework** : NestJS (Node.js) organisé en modules découplés (`Users`, `Auth`, `Checkins`, `Weather`, `Ai`, `Music`, `Badges`).
 * **Sécurité & Auth** : Passport JWT, Guards d'authentification pour protéger les endpoints utilisateurs.
 
 ### Services Cloud & IA
@@ -71,22 +74,23 @@ git clone https://github.com/MarwanFo/Style_ton_humeur.git
 cd Style_ton_humeur
 ```
 
-### 2. Configuration & Lancement du Backend
-```bash
-cd backend
-npm install
-```
+### 2. Lancer le Backend (NestJS)
+1. Allez dans le dossier `backend` :
+   ```bash
+   cd backend
+   npm install
+   ```
 
-1. Créez un fichier `.env` dans le dossier `backend` :
+2. Créez un fichier `.env` à la racine de `/backend` (s'il n'existe pas) :
    ```env
-   # Database
+   # Database (PostgreSQL ou MySQL)
    DATABASE_URL="postgresql://postgres:PASSWORD@localhost:5432/style_ton_humeur?schema=public"
 
    # AI & APIs
    GEMINI_API_KEY="VOTRE_CLE_GEMINI"
    REPLICATE_API_TOKEN="VOTRE_TOKEN_REPLICATE"
 
-   # Cloudinary (Obligatoire pour les photos de silhouettes et TTS)
+   # Cloudinary
    CLOUDINARY_CLOUD_NAME="votre_cloud_name"
    CLOUDINARY_API_KEY="votre_api_key"
    CLOUDINARY_API_SECRET="votre_api_secret"
@@ -95,28 +99,28 @@ npm install
    JWT_SECRET="un_secret_tres_robuste"
    ```
 
-2. Synchronisez et migrez votre base de données :
+3. Exécutez les migrations Prisma pour créer la base et les tables :
    ```bash
-   npx prisma db push
+   npx prisma migrate dev --name init
    ```
 
-3. Lancez le serveur de développement :
+4. Lancez le serveur de développement :
    ```bash
    npm run start:dev
    ```
+   L'API sera disponible sur : `http://localhost:3000/api`
 
-### 3. Configuration & Lancement du Frontend
-Ouvrez un nouveau terminal et positionnez-vous dans le dossier frontend :
-```bash
-cd frontend
-npm install
-```
-
-1. Lancez le serveur Expo :
+### 3. Lancer le Frontend (React Native - Expo)
+1. Allez dans le dossier `frontend` :
    ```bash
-   npx expo start -c
+   cd ../frontend
+   npm install
    ```
-2. Ouvrez l'application via l'émulateur (appuyez sur `a` pour Android ou `i` pour iOS) ou scannez le QR code affiché dans votre terminal à l'aide de l'application mobile **Expo Go** (assurez-vous d'être connecté sur le même réseau Wi-Fi).
+2. Lancez le serveur Expo :
+   ```bash
+   npx expo start
+   ```
+3. Scannez le QR Code avec l'application mobile **Expo Go** (sur iOS/Android) pour lancer l'application !
 
 ---
 

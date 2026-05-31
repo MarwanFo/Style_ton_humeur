@@ -35,7 +35,6 @@ export default function Sidebar() {
         <NavLink 
           to="/users" 
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          onClick={(e) => e.preventDefault()}
         >
           <Users size={18} />
           <span>Utilisateurs</span>
@@ -43,9 +42,8 @@ export default function Sidebar() {
         </NavLink>
 
         <NavLink 
-          to="/checkins" 
+          to="/sentiments" 
           className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
-          onClick={(e) => e.preventDefault()}
         >
           <Image size={18} style={{ marginRight: '1px' }} />
           <span>Analyses d'Humeur</span>

@@ -1,8 +1,9 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Badges from './pages/Badges';
+import Users from './pages/Users';
+import Sentiments from './pages/Sentiments';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import './App.css';
@@ -50,6 +51,8 @@ export default function App() {
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/badges" element={<Badges />} />
+            <Route path="/users" element={<Users />} />
+            <Route path="/sentiments" element={<Sentiments />} />
             {/* Fallbacks */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
