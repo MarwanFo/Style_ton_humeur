@@ -129,4 +129,51 @@ export class AuthService {
     }
     return this.login(user);
   }
+
+  async forgotPassword(email: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new UnauthorizedException("Cet e-mail n'existe pas dans notre base de données.");
+    }
+
+    // Generate a 6-digit verification code
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes validity
+
+    await this.usersService.setResetToken(user.id, code, expires);
+
+    console.log('\n=========================================');
+    console.log('🔑 [CODE DE RÉINITIALISATION DE MOT DE PASSE]');
+    console.log(`📧 Destinataire: ${email}`);
+    console.log(`🔢 Code temporaire: ${code}`);
+    console.log('=========================================\n');
+
+    return { 
+      success: true, 
+      message: 'Un code de réinitialisation a été généré.',
+      code // returned in development API response for convenience
+    };
+  }
+
+  async resetPassword(email: string, code: string, newPass: string) {
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new UnauthorizedException("Utilisateur non trouvé.");
+    }
+
+    if (!user.resetToken || user.resetToken !== code) {
+      throw new UnauthorizedException("Le code de réinitialisation est incorrect.");
+    }
+
+    if (!user.resetTokenExpires || user.resetTokenExpires.getTime() < Date.now()) {
+      throw new UnauthorizedException("Le code de réinitialisation a expiré.");
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPass, salt);
+
+    await this.usersService.updatePassword(user.id, passwordHash);
+
+    return { success: true, message: 'Votre mot de passe a été réinitialisé avec succès.' };
+  }
 }

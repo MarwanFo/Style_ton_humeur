@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Award, ShieldAlert, LogOut, Sparkles, Image } from 'lucide-react';
+import { LayoutDashboard, Users, Award, ShieldAlert, LogOut, Sparkles, Image, Settings } from 'lucide-react';
 
 export default function Sidebar() {
   const navigate = useNavigate();
@@ -56,6 +56,14 @@ export default function Sidebar() {
         >
           <Award size={18} />
           <span>Catalogue Badges</span>
+        </NavLink>
+
+        <NavLink 
+          to="/settings" 
+          className={({ isActive }) => `nav-link ${isActive ? 'active' : ''}`}
+        >
+          <Settings size={18} />
+          <span>Gestion Paiements</span>
         </NavLink>
       </nav>
 

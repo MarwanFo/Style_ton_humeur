@@ -84,12 +84,16 @@ export class CheckinsController {
   @Post('virtual-try-on')
   async generateTryOn(
     @Request() req,
-    @Body() body: { humanImageUrl: string, garmentImageUrl: string }
+    @Body() body: { humanImageUrl: string; garmentImageUrl: string; garmentImageUrlBottom?: string }
   ) {
     if (!body.humanImageUrl || !body.garmentImageUrl) {
       throw new HttpException('Images manquantes.', HttpStatus.BAD_REQUEST);
     }
-    const tryOnResultUrl = await this.tryOnService.generateTryOn(body.humanImageUrl, body.garmentImageUrl);
+    const tryOnResultUrl = await this.tryOnService.generateTryOn(
+      body.humanImageUrl,
+      body.garmentImageUrl,
+      body.garmentImageUrlBottom
+    );
     if (!tryOnResultUrl) {
       throw new HttpException('Erreur de génération VTON.', HttpStatus.INTERNAL_SERVER_ERROR);
     }

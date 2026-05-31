@@ -11,6 +11,7 @@ import { SentimentsModule } from './sentiments/sentiments.module';
 import { AdminModule } from './admin/admin.module';
 import { MusicModule } from './music/music.module';
 import { BadgesModule } from './badges/badges.module';
+import { SystemConfigModule } from './config/system-config.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { BadgesModule } from './badges/badges.module';
     AdminModule,
     MusicModule,
     BadgesModule,
+    SystemConfigModule,
   ],
   controllers: [AppController],
   providers: [AppService],

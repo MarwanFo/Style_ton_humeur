@@ -53,4 +53,36 @@ export class UsersService {
       data: updateData,
     });
   }
+
+  async setResetToken(userId: number, token: string | null, expires: Date | null): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        resetToken: token,
+        resetTokenExpires: expires,
+      },
+    });
+  }
+
+  async updatePassword(userId: number, passwordHash: string): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        passwordHash,
+        resetToken: null,
+        resetTokenExpires: null,
+      },
+    });
+  }
+
+  async upgradeToPremium(userId: number): Promise<User> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        plan: 'PREMIUM',
+        tier: 'PREMIUM',
+      },
+    });
+  }
 }
+

@@ -79,4 +79,16 @@ export class AuthController {
   async googleLogin(@Body() body: { email: string; displayName: string }) {
     return this.authService.loginWithGoogleProfile(body.email, body.displayName);
   }
+
+  @Post('forgot-password')
+  @HttpCode(HttpStatus.OK)
+  async forgotPassword(@Body() body: { email: string }) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  @HttpCode(HttpStatus.OK)
+  async resetPassword(@Body() body: { email: string; code: string; pass: string }) {
+    return this.authService.resetPassword(body.email, body.code, body.pass);
+  }
 }

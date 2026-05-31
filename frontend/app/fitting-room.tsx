@@ -67,6 +67,47 @@ export default function FittingRoomScreen() {
   useEffect(() => {
     const initData = async () => {
       try {
+        // Fetch dynamic system configuration for Try-On
+        let isPremiumRequired = true;
+        try {
+          const configRes = await fetch(`${API_URL}/system-config`);
+          if (configRes.ok) {
+            const data = await configRes.json();
+            isPremiumRequired = !!data.isTryOnPremium;
+            await AsyncStorage.setItem('system_config', JSON.stringify(data));
+          } else {
+            const cached = await AsyncStorage.getItem('system_config');
+            if (cached) isPremiumRequired = !!JSON.parse(cached).isTryOnPremium;
+          }
+        } catch (_) {
+          const cached = await AsyncStorage.getItem('system_config');
+          if (cached) isPremiumRequired = !!JSON.parse(cached).isTryOnPremium;
+        }
+
+        const userStr = await AsyncStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : null;
+
+        if (isPremiumRequired && (!user || user.plan !== 'PREMIUM')) {
+          setTimeout(() => {
+            Alert.alert(
+              "👑 Cabine d'Essayage Premium",
+              "L'essayage virtuel IA des tenues est réservé aux abonnés Aura Premium.",
+              [
+                { text: "Devenir Premium 👑", onPress: () => router.replace('/(tabs)/two') },
+                { text: "Retour", onPress: () => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/(tabs)');
+                  }
+                }, style: "cancel" }
+              ],
+              { cancelable: false }
+            );
+          }, 150);
+          return;
+        }
+
         let activeIdx = 0;
         if (params.outfitIndex) {
           activeIdx = parseInt(params.outfitIndex as string, 10);
@@ -145,6 +186,34 @@ export default function FittingRoomScreen() {
       return;
     }
 
+    // Check Premium Limitations
+    try {
+      const userStr = await AsyncStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+
+      const configStr = await AsyncStorage.getItem('system_config');
+      const config = configStr ? JSON.parse(configStr) : { isTryOnPremium: true };
+
+      if (config.isTryOnPremium && user && user.plan !== 'PREMIUM') {
+        const countStr = await AsyncStorage.getItem('fitting_scans_count');
+        const count = countStr ? parseInt(countStr, 10) : 0;
+        if (count >= 3) {
+          Alert.alert(
+            "Limite Cabine Gratuite",
+            "L'IA d'essayage virtuel nécessite des ressources GPU importantes. Vous avez épuisé vos 3 essais gratuits.\n\nPassez à Aura Premium pour essayer vos tenues en illimité ! ✨",
+            [
+              { text: "Plus tard", style: "cancel" },
+              { text: "Devenir Premium 👑", onPress: () => router.push('/(tabs)/two') }
+            ]
+          );
+          return;
+        }
+        await AsyncStorage.setItem('fitting_scans_count', (count + 1).toString());
+      }
+    } catch (e) {
+      console.log('Error checking premium limits:', e);
+    }
+
     setIsScanning(true);
     setScanCompleted(false);
     laserOpacity.value = withTiming(1, { duration: 200 });
@@ -164,20 +233,49 @@ export default function FittingRoomScreen() {
       // If we don't have a scanned image (e.g. from the questionnaire), use a default model silhouette
       const humanImg = imageUrl || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80";
       
-      // Select garment item image (different images depending on active outfit style)
-      // Flat-lay product shots on clean background work 1000% better for IDM-VTON try-on
-      let garmentImageUrl = "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80"; // default cool leather jacket flat-lay
-      const combinedText = ((activeOutfit.title || "") + " " + (activeOutfit.pieces || []).join(" ")).toLowerCase();
-      
-      if (combinedText.includes('hoodie') || combinedText.includes('sweat') || combinedText.includes('capuche')) {
-        garmentImageUrl = "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&q=80"; // Clean black hoodie flat-lay
-      } else if (combinedText.includes('sport') || combinedText.includes('t-shirt') || combinedText.includes('chemise') || combinedText.includes('haut')) {
-        garmentImageUrl = "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=600&q=80"; // Clean white t-shirt flat-lay
-      } else if (combinedText.includes('chic') || combinedText.includes('élégant') || combinedText.includes('costume') || combinedText.includes('blazer') || combinedText.includes('veste')) {
-        garmentImageUrl = "https://images.unsplash.com/photo-1598808503746-f34c53b9323e?w=600&q=80"; // Clean dark blue blazer flat-lay
-      } else if (combinedText.includes('jean') || combinedText.includes('denim') || combinedText.includes('pantalon')) {
-        garmentImageUrl = "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&q=80"; // Clean denim jacket flat-lay
-      }
+      // Select top and bottom garment flat-lays dynamically based on equipped items
+      let garmentImageUrl = "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80"; // Default leather jacket top
+      let garmentImageUrlBottom: string | undefined = undefined;
+
+      const pieces = activeOutfit.pieces || [];
+
+      pieces.forEach((piece: string, index: number) => {
+        const isEquipped = equippedItems[index];
+        if (!isEquipped) return;
+
+        const pieceLower = piece.toLowerCase();
+
+        // 1. Detect and map Tops
+        if (
+          pieceLower.includes('hoodie') || pieceLower.includes('sweat') || pieceLower.includes('capuche') ||
+          pieceLower.includes('t-shirt') || pieceLower.includes('chemise') || pieceLower.includes('haut') || pieceLower.includes('pull') ||
+          pieceLower.includes('blazer') || pieceLower.includes('veste') || pieceLower.includes('costume') || pieceLower.includes('manteau') || pieceLower.includes('perfecto')
+        ) {
+          if (pieceLower.includes('hoodie') || pieceLower.includes('sweat') || pieceLower.includes('capuche')) {
+            garmentImageUrl = "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&q=80"; // Black hoodie
+          } else if (pieceLower.includes('blazer') || pieceLower.includes('veste') || pieceLower.includes('costume') || pieceLower.includes('manteau')) {
+            garmentImageUrl = "https://images.unsplash.com/photo-1598808503746-f34c53b9323e?w=600&q=80"; // Blue blazer
+          } else if (pieceLower.includes('jean') || pieceLower.includes('denim')) {
+            garmentImageUrl = "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&q=80"; // Denim jacket
+          } else {
+            garmentImageUrl = "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=600&q=80"; // White t-shirt
+          }
+        }
+
+        // 2. Detect and map Bottoms
+        if (
+          pieceLower.includes('jean') || pieceLower.includes('pantalon') || pieceLower.includes('chino') || 
+          pieceLower.includes('jogging') || pieceLower.includes('legging') || pieceLower.includes('short') || pieceLower.includes('jupe')
+        ) {
+          if (pieceLower.includes('jean') || pieceLower.includes('denim')) {
+            garmentImageUrlBottom = "https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=600&q=80"; // Blue jeans
+          } else if (pieceLower.includes('jogging') || pieceLower.includes('legging') || pieceLower.includes('sport')) {
+            garmentImageUrlBottom = "https://images.unsplash.com/photo-1485291571150-772bcfc10da5?w=600&q=80"; // Grey joggers
+          } else {
+            garmentImageUrlBottom = "https://images.unsplash.com/photo-1542272604-787c3835535d?w=600&q=80"; // Dark chinos
+          }
+        }
+      });
 
       const response = await fetch(`${API_URL}/checkins/virtual-try-on`, {
         method: 'POST',
@@ -187,7 +285,8 @@ export default function FittingRoomScreen() {
         },
         body: JSON.stringify({
           humanImageUrl: humanImg,
-          garmentImageUrl: garmentImageUrl
+          garmentImageUrl: garmentImageUrl,
+          garmentImageUrlBottom: garmentImageUrlBottom
         })
       });
 

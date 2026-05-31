@@ -41,6 +41,11 @@ export function useBadges() {
         },
         body: JSON.stringify(badgeData),
       });
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.reload();
+        return false;
+      }
       if (!response.ok) throw new Error('Erreur lors de la création');
       await fetchBadges();
       return true;
@@ -61,6 +66,11 @@ export function useBadges() {
         },
         body: JSON.stringify(badgeData),
       });
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.reload();
+        return false;
+      }
       if (!response.ok) throw new Error('Erreur lors de la modification');
       await fetchBadges();
       return true;
@@ -79,6 +89,11 @@ export function useBadges() {
           'Authorization': `Bearer ${token}`
         },
       });
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.reload();
+        return false;
+      }
       if (!response.ok) throw new Error('Erreur lors de la suppression');
       await fetchBadges();
       return true;

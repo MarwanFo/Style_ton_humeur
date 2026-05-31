@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard';
 import Badges from './pages/Badges';
 import Users from './pages/Users';
 import Sentiments from './pages/Sentiments';
+import Settings from './pages/Settings';
 import Sidebar from './components/Sidebar';
 import Header from './components/Header';
 import './App.css';
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/badges" element={<Badges />} />
             <Route path="/users" element={<Users />} />
             <Route path="/sentiments" element={<Sentiments />} />
+            <Route path="/settings" element={<Settings />} />
             {/* Fallbacks */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

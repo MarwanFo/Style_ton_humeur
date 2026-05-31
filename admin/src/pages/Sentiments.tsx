@@ -46,6 +46,12 @@ export default function Sentiments() {
         },
       });
 
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.reload();
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(`Erreur serveur (${response.status}) : Impossible de charger l'historique.`);
       }

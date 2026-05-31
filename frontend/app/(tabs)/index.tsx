@@ -59,6 +59,19 @@ export default function HomeScreen() {
     iconColor?: string;
   } | null>(null);
 
+  // Beauty / Makeup Modal State
+  const [isBeautyModalVisible, setIsBeautyModalVisible] = useState(false);
+
+  // System dynamic configuration state
+  const [systemConfig, setSystemConfig] = useState<any>({
+    premiumPriceMad: 99.0,
+    isTryOnPremium: true,
+    isBeautyPremium: true,
+    isVoicePremium: true,
+    isSentimentsPremium: false,
+    isMusicPremium: false,
+  });
+
   const showCustomAlert = (
     title: string,
     description: string,
@@ -134,43 +147,119 @@ export default function HomeScreen() {
     }
   };
 
-  const handleScanStyle = () => {
-    showCustomAlert(
-      "Style & Mode",
-      "Sélectionnez votre mode d'analyse :",
-      [
-        {
-          text: "🎙️ Assistant Vocal",
-          onPress: () => router.push('/voice-stylist' as any)
-        },
-        {
-          text: "📸 Analyser ma silhouette",
-          onPress: async () => {
-            const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
-            const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  const handleBeautyPress = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      if (user) {
+        setUserProfile(user);
+      }
 
-            if (!cameraPermission.granted || !libraryPermission.granted) {
-              showCustomAlert(
-                "Permissions",
-                "L'accès à l'appareil photo est requis pour cette fonctionnalité premium.",
-                [{ text: "OK", onPress: () => {} }],
-                "lock-closed-outline",
-                "#EF4444"
-              );
-              return;
-            }
-
-            if (userProfile) {
-              if (userProfile.height && !heightVal) setHeightVal(String(userProfile.height));
-              if (userProfile.origin && !originVal) setOriginVal(userProfile.origin);
-            }
-            setIsFormModalVisible(true);
+      const freshConfig = systemConfig;
+      // Trigger background configuration update
+      fetch(`${API_URL}/system-config`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setSystemConfig(data);
+            AsyncStorage.setItem('system_config', JSON.stringify(data));
           }
-        },
-        { text: "Annuler", onPress: () => {}, isCancel: true }
-      ],
-      "sparkles-outline"
-    );
+        })
+        .catch(() => {});
+
+      if (freshConfig.isBeautyPremium && user?.plan !== 'PREMIUM') {
+        showCustomAlert(
+          "👑 Fonctionnalité Premium",
+          "L'Analyse Colorimétrique & Beauté IA est réservée aux membres Aura Premium.\n\nDécouvrez votre colorimétrie idéale et obtenez des recommandations de maquillage !",
+          [
+            { text: "Devenir Premium 👑", onPress: () => router.push('/(tabs)/two') },
+            { text: "Plus tard", onPress: () => {}, isCancel: true }
+          ],
+          "crown-outline",
+          "#F59E0B"
+        );
+      } else {
+        setIsBeautyModalVisible(true);
+      }
+    } catch (e) {
+      console.log('Error checking premium status:', e);
+    }
+  };
+
+  const handleScanStyle = async () => {
+    try {
+      const userStr = await AsyncStorage.getItem('user');
+      const user = userStr ? JSON.parse(userStr) : null;
+      if (user) {
+        setUserProfile(user);
+      }
+
+      const freshConfig = systemConfig;
+      // Trigger background configuration update
+      fetch(`${API_URL}/system-config`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data) {
+            setSystemConfig(data);
+            AsyncStorage.setItem('system_config', JSON.stringify(data));
+          }
+        })
+        .catch(() => {});
+
+      showCustomAlert(
+        "Style & Mode",
+        "Sélectionnez votre mode d'analyse :",
+        [
+          {
+            text: "🎙️ Assistant Vocal",
+            onPress: () => {
+              if (freshConfig.isVoicePremium && user?.plan !== 'PREMIUM') {
+                showCustomAlert(
+                  "👑 Assistant Vocal Premium",
+                  "L'Assistant Vocal Stylist est réservé aux membres Aura Premium.\n\nParlez librement à votre styliste IA personnel et concevez votre look !",
+                  [
+                    { text: "Devenir Premium 👑", onPress: () => router.push('/(tabs)/two') },
+                    { text: "Plus tard", onPress: () => {}, isCancel: true }
+                  ],
+                  "crown-outline",
+                  "#F59E0B"
+                );
+              } else {
+                router.push('/voice-stylist' as any);
+              }
+            }
+          },
+          {
+            text: "📸 Analyser ma silhouette",
+            onPress: async () => {
+              const cameraPermission = await ImagePicker.requestCameraPermissionsAsync();
+              const libraryPermission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+              if (!cameraPermission.granted || !libraryPermission.granted) {
+                showCustomAlert(
+                  "Permissions",
+                  "L'accès à l'appareil photo est requis pour cette fonctionnalité premium.",
+                  [{ text: "OK", onPress: () => {} }],
+                  "lock-closed-outline",
+                  "#EF4444"
+                );
+                return;
+              }
+
+              if (user) {
+                if (user.height && !heightVal) setHeightVal(String(user.height));
+                if (user.origin && !originVal) setOriginVal(user.origin);
+              }
+              setIsFormModalVisible(true);
+            }
+          },
+          { text: "Annuler", onPress: () => {}, isCancel: true }
+        ],
+        "sparkles-outline"
+      );
+    } catch (err) {
+      console.log('Error launching style mode selector:', err);
+    }
   };
 
   const handleProceedToScan = () => {
@@ -282,6 +371,15 @@ export default function HomeScreen() {
           if (streakRes.ok) {
             const streakData = await streakRes.json();
             setStreak(streakData.currentStreak || 0);
+          }
+        } catch (e) {}
+
+        try {
+          const configRes = await fetch(`${API_URL}/system-config`);
+          if (configRes.ok) {
+            const data = await configRes.json();
+            setSystemConfig(data);
+            await AsyncStorage.setItem('system_config', JSON.stringify(data));
           }
         } catch (e) {}
 
@@ -446,7 +544,7 @@ export default function HomeScreen() {
             </Pressable>
 
             {/* FEATURE 4: MAQUILLAGE */}
-            <Pressable style={styles.cardWrapper} onPress={() => Alert.alert('Bientôt disponible', "En développement par l'équipe Beauté.")}>
+            <Pressable style={styles.cardWrapper} onPress={handleBeautyPress}>
               <LinearGradient colors={['#FF4E50', '#F9D423']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <View style={[styles.iconFrame, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
@@ -586,6 +684,121 @@ export default function HomeScreen() {
                 <Text style={styles.btnGhostText}>Fermer</Text>
               </Pressable>
             </View>
+          </BlurView>
+        </View>
+      </Modal>
+
+      {/* BEAUTY & COLORIMETRY ANALYSIS MODAL */}
+      <Modal 
+        visible={isBeautyModalVisible} 
+        transparent 
+        animationType="slide"
+        onRequestClose={() => setIsBeautyModalVisible(false)}
+      >
+        <View style={styles.formOverlay}>
+          <Pressable style={StyleSheet.absoluteFillObject} onPress={() => setIsBeautyModalVisible(false)} />
+          <BlurView intensity={98} tint="dark" style={[styles.formContainer, { backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: 'rgba(251, 191, 36, 0.2)' }]}>
+            
+            {/* Header */}
+            <View style={styles.formHeader}>
+              <View style={[styles.formIconBadge, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}>
+                <Ionicons name="sparkles" size={20} color="#F59E0B" style={{ marginRight: 0 }} />
+              </View>
+              <Text style={[styles.formTitle, { color: '#FFF' }]}>Colorimétrie & Beauté IA</Text>
+              <Text style={[styles.formSub, { color: 'rgba(255,255,255,0.6)' }]}>Votre profil chromatique & maquillage sur-mesure</Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              
+              {/* Season profile banner */}
+              <LinearGradient 
+                colors={['#D97706', '#92400E']} 
+                start={{ x: 0, y: 0 }} 
+                end={{ x: 1, y: 1 }} 
+                style={styles.beautyProfileCard}
+              >
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={styles.beautySeasonTitle}>Automne Chaleureux 🍂</Text>
+                  <Text style={styles.beautySeasonDesc}>
+                    Votre teint doré et vos yeux clairs ou ambrés résonnent merveilleusement avec les nuances chaudes, riches et terrestres.
+                  </Text>
+                </View>
+                <Image 
+                  source={{ uri: 'https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&q=80' }} 
+                  style={styles.beautyProfileThumb} 
+                />
+              </LinearGradient>
+
+              {/* Color Palette section */}
+              <Text style={styles.beautySectionLabel}>PALETTE DE SAISON RECOMMANDÉE</Text>
+              <View style={styles.beautyPaletteRow}>
+                <View style={styles.beautyPaletteBlock}>
+                  <View style={[styles.beautyPaletteColor, { backgroundColor: '#B91C1C' }]} />
+                  <Text style={styles.beautyPaletteText}>Terracotta</Text>
+                </View>
+                <View style={styles.beautyPaletteBlock}>
+                  <View style={[styles.beautyPaletteColor, { backgroundColor: '#D97706' }]} />
+                  <Text style={styles.beautyPaletteText}>Ocre/Or</Text>
+                </View>
+                <View style={styles.beautyPaletteBlock}>
+                  <View style={[styles.beautyPaletteColor, { backgroundColor: '#15803D' }]} />
+                  <Text style={styles.beautyPaletteText}>Olive</Text>
+                </View>
+                <View style={styles.beautyPaletteBlock}>
+                  <View style={[styles.beautyPaletteColor, { backgroundColor: '#78350F' }]} />
+                  <Text style={styles.beautyPaletteText}>Chocolat</Text>
+                </View>
+                <View style={styles.beautyPaletteBlock}>
+                  <View style={[styles.beautyPaletteColor, { backgroundColor: '#FEF3C7' }]} />
+                  <Text style={styles.beautyPaletteText}>Crème</Text>
+                </View>
+              </View>
+
+              {/* Makeup suggestions */}
+              <Text style={styles.beautySectionLabel}>GUIDE MAQUILLAGE PERSONNALISÉ</Text>
+              
+              <View style={styles.beautyFeatureCard}>
+                <MaterialCommunityIcons name="lipstick" size={24} color="#F59E0B" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.beautyFeatureTitle}>Lèvres (Rouge à lèvres)</Text>
+                  <Text style={styles.beautyFeatureDescText}>
+                    Privilégiez les rouges brique satinés, les nudes chauds ou un gloss abricoté. Évitez les sous-tons bleuâtres ou roses froids.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.beautyFeatureCard}>
+                <MaterialCommunityIcons name="eye-outline" size={24} color="#F59E0B" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.beautyFeatureTitle}>Yeux (Fards à paupières)</Text>
+                  <Text style={styles.beautyFeatureDescText}>
+                    Les ombres bronze doré, cuivre et vert forêt sublimeront votre regard. Utilisez un eye-liner marron chaud au lieu du noir pur.
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.beautyFeatureCard}>
+                <MaterialCommunityIcons name="face-woman-outline" size={24} color="#F59E0B" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.beautyFeatureTitle}>Teint (Blush & Illuminateur)</Text>
+                  <Text style={styles.beautyFeatureDescText}>
+                    Optez pour un blush pêche chaud ou corail léger. L'enlumineur (highlighter) doit être de nuance champagne ou or chaud.
+                  </Text>
+                </View>
+              </View>
+
+            </ScrollView>
+
+            <View style={styles.beautyModalFooter}>
+              <Pressable style={styles.beautyRegenBtn} onPress={() => Alert.alert("Analyse IA", "Recalcul de colorimétrie en cours...", [{ text: "Super" }])}>
+                <Ionicons name="refresh-outline" size={16} color="#000" style={{ marginRight: 6 }} />
+                <Text style={styles.beautyRegenBtnText}>Recalculer</Text>
+              </Pressable>
+              <Pressable style={styles.beautyCloseBtn} onPress={() => setIsBeautyModalVisible(false)}>
+                <Text style={styles.beautyCloseBtnText}>Fermer</Text>
+              </Pressable>
+            </View>
+
           </BlurView>
         </View>
       </Modal>
@@ -1124,5 +1337,119 @@ const styles = StyleSheet.create({
   },
   customAlertBtnTextCancel: {
     color: '#4B5563',
+  },
+  // Beauty Analysis styles
+  beautyProfileCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  beautySeasonTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    marginBottom: 6,
+  },
+  beautySeasonDesc: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.85)',
+    lineHeight: 16,
+  },
+  beautyProfileThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  beautySectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F59E0B',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  beautyPaletteRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 22,
+    gap: 8,
+  },
+  beautyPaletteBlock: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  beautyPaletteColor: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginBottom: 6,
+  },
+  beautyPaletteText: {
+    fontSize: 9,
+    color: '#9CA3AF',
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  beautyFeatureCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 10,
+  },
+  beautyFeatureTitle: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  beautyFeatureDescText: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    lineHeight: 15,
+  },
+  beautyModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  beautyRegenBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: '#F59E0B',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  beautyRegenBtnText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  beautyCloseBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  beautyCloseBtnText: {
+    color: '#FFF',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });

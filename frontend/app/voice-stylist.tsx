@@ -83,6 +83,52 @@ export default function VoiceStylistScreen() {
   const waveHeight4 = useSharedValue(10);
 
   useEffect(() => {
+    const checkPremium = async () => {
+      try {
+        const userStr = await AsyncStorage.getItem('user');
+        const user = userStr ? JSON.parse(userStr) : null;
+        
+        let isPremiumRequired = true;
+        try {
+          const configRes = await fetch(`${API_URL}/system-config`);
+          if (configRes.ok) {
+            const data = await configRes.json();
+            isPremiumRequired = !!data.isVoicePremium;
+            await AsyncStorage.setItem('system_config', JSON.stringify(data));
+          } else {
+            const cached = await AsyncStorage.getItem('system_config');
+            if (cached) isPremiumRequired = !!JSON.parse(cached).isVoicePremium;
+          }
+        } catch (_) {
+          const cached = await AsyncStorage.getItem('system_config');
+          if (cached) isPremiumRequired = !!JSON.parse(cached).isVoicePremium;
+        }
+
+        if (isPremiumRequired && (!user || user.plan !== 'PREMIUM')) {
+          setTimeout(() => {
+            Alert.alert(
+              "👑 Assistant Vocal Premium",
+              "L'Assistant Vocal Stylist est réservé aux membres Aura Premium.",
+              [
+                { text: "Devenir Premium 👑", onPress: () => router.replace('/(tabs)/two') },
+                { text: "Retour", onPress: () => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/(tabs)');
+                  }
+                }, style: "cancel" }
+              ],
+              { cancelable: false }
+            );
+          }, 150);
+        }
+      } catch (err) {
+        console.log('Error verifying voice stylist access:', err);
+      }
+    };
+    checkPremium();
+
     // Request microphone permissions on load
     const reqPermission = async () => {
       await Audio.requestPermissionsAsync();

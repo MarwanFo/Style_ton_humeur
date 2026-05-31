@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, StatusBar, ScrollView, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
 import { Ionicons, Feather } from '@expo/vector-icons';
@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MusicRecommendation } from '@/components/music/MusicRecommendation';
+import { API_URL } from '../constants/Api';
 import { MusicTrackItem } from '@/hooks/useMusicRecommendationState';
 
 export default function MusicScreen() {
@@ -31,8 +32,46 @@ export default function MusicScreen() {
     const bootstrap = async () => {
       try {
         const userRaw = await AsyncStorage.getItem('user');
-        const userParsed = userRaw ? JSON.parse(userRaw) : null;
-        setUserId(userParsed?.id || null);
+        const user = userRaw ? JSON.parse(userRaw) : null;
+        setUserId(user?.id || null);
+
+        // Fetch dynamic configuration
+        let isPremiumRequired = false;
+        try {
+          const configRes = await fetch(`${API_URL}/system-config`);
+          if (configRes.ok) {
+            const data = await configRes.json();
+            isPremiumRequired = !!data.isMusicPremium;
+            await AsyncStorage.setItem('system_config', JSON.stringify(data));
+          } else {
+            const cached = await AsyncStorage.getItem('system_config');
+            if (cached) isPremiumRequired = !!JSON.parse(cached).isMusicPremium;
+          }
+        } catch (_) {
+          const cached = await AsyncStorage.getItem('system_config');
+          if (cached) isPremiumRequired = !!JSON.parse(cached).isMusicPremium;
+        }
+
+        if (isPremiumRequired && (!user || user.plan !== 'PREMIUM')) {
+          setTimeout(() => {
+            Alert.alert(
+              "👑 Musique Premium",
+              "L'Ambiance Musicale IA est réservée aux membres Aura Premium.",
+              [
+                { text: "Devenir Premium 👑", onPress: () => router.replace('/(tabs)/two') },
+                { text: "Retour", onPress: () => {
+                  if (router.canGoBack()) {
+                    router.back();
+                  } else {
+                    router.replace('/(tabs)');
+                  }
+                }, style: "cancel" }
+              ],
+              { cancelable: false }
+            );
+          }, 150);
+          return;
+        }
 
         const recoRaw = await AsyncStorage.getItem('latestRecommendation');
         if (recoRaw) {

@@ -87,6 +87,11 @@ export default function Users() {
         method: 'GET',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token || ''}` },
       });
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.reload();
+        return;
+      }
       if (!response.ok) throw new Error(`Erreur serveur (${response.status}).`);
       const data = await response.json();
       setUsers(Array.isArray(data) ? data : data.users || []);

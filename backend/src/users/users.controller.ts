@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards, Request, NotFoundException } from '@nestjs/common';
+import { Controller, Get, UseGuards, Request, NotFoundException, Post } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -23,7 +23,29 @@ export class UsersController {
       gender: user.gender,
       age: user.age,
       twoFactorEnabled: (user as any).twoFactorEnabled,
+      plan: user.plan,
+      tier: user.tier,
       createdAt: user.createdAt,
     };
   }
+
+  @Post('upgrade')
+  async upgrade(@Request() req) {
+    const userId = req.user.userId;
+    const upgradedUser = await this.usersService.upgradeToPremium(userId);
+    return {
+      success: true,
+      message: 'Compte mis à niveau vers PREMIUM avec succès !',
+      user: {
+        id: upgradedUser.id,
+        email: upgradedUser.email,
+        displayName: upgradedUser.displayName,
+        gender: upgradedUser.gender,
+        age: upgradedUser.age,
+        plan: upgradedUser.plan,
+        tier: upgradedUser.tier,
+      }
+    };
+  }
 }
+

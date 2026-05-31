@@ -26,6 +26,8 @@ model User {
   role               String              @default("USER") // "USER" | "ADMIN"
   plan               String              @default("FREE") // "FREE" | "PREMIUM"
   tier               String              @default("FREE")
+  resetToken         String?
+  resetTokenExpires  DateTime?
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
   
@@ -189,4 +191,15 @@ model SentimentScan {
   createdAt       DateTime @default(now())
 
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SystemConfig {
+  id                      Int      @id @default(1)
+  premiumPriceMad         Float    @default(99.0)
+  isTryOnPremium          Boolean  @default(true)
+  isBeautyPremium         Boolean  @default(true)
+  isVoicePremium          Boolean  @default(true)
+  isSentimentsPremium     Boolean  @default(false)
+  isMusicPremium          Boolean  @default(false)
+  updatedAt               DateTime @updatedAt
 }

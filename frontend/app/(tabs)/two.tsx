@@ -10,7 +10,11 @@ import {
   ActivityIndicator,
   Switch,
   Modal,
-  TextInput
+  TextInput,
+  Vibration,
+  KeyboardAvoidingView,
+  Platform,
+  Dimensions
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from 'expo-blur';
@@ -20,7 +24,39 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { API_URL } from '@/constants/Api';
 import { useNotifications } from '@/hooks/useNotifications';
-import Animated, { FadeInUp, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInUp, FadeInDown, useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
+
+
+const { width, height } = Dimensions.get('window');
+
+const ConfettiParticle = ({ left, color, shape, size }: any) => {
+  const translateY = useSharedValue(height);
+  const opacity = useSharedValue(1);
+  const rotate = useSharedValue(0);
+
+  useEffect(() => {
+    translateY.value = withTiming(-100, { duration: Math.random() * 2500 + 1500 });
+    opacity.value = withTiming(0, { duration: Math.random() * 2500 + 1500 });
+    rotate.value = withTiming(Math.random() * 360, { duration: Math.random() * 2500 + 1500 });
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    position: 'absolute',
+    left,
+    zIndex: 9999,
+    width: size,
+    height: size,
+    borderRadius: shape === 'circle' ? size / 2 : 2,
+    backgroundColor: color,
+    opacity: opacity.value,
+    transform: [
+      { translateY: translateY.value },
+      { rotate: `${rotate.value}deg` }
+    ]
+  }));
+
+  return <Animated.View style={animatedStyle} />;
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -38,6 +74,48 @@ export default function ProfileScreen() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
 
+  // Aura Premium Payment States
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentSuccess, setPaymentSuccess] = useState(false);
+  const [isPaying, setIsPaying] = useState(false);
+  const [cardName, setCardName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [isCardFlipped, setIsCardFlipped] = useState(false);
+  const [particles, setParticles] = useState<any[]>([]);
+  
+  // Apple Pay / FaceID Scanner States
+  const [isApplePaying, setIsApplePaying] = useState(false);
+  const [faceIdState, setFaceIdState] = useState<'idle' | 'scanning' | 'success' | 'failed'>('idle');
+
+  // Dynamic System Configuration state
+  const [systemConfig, setSystemConfig] = useState<any>({
+    premiumPriceMad: 99.0,
+    isTryOnPremium: true,
+    isBeautyPremium: true,
+    isVoicePremium: true,
+    isSentimentsPremium: false,
+    isMusicPremium: false,
+  });
+
+  const generateParticles = () => {
+    const arr = [];
+    const colors = ['#FFD700', '#FF8E53', '#8B5CF6', '#10B981', '#3B82F6', '#EC4899'];
+    for (let i = 0; i < 40; i++) {
+      arr.push({
+        id: Math.random().toString(),
+        left: Math.random() * width,
+        size: Math.random() * 8 + 6,
+        color: colors[Math.floor(Math.random() * colors.length)],
+        shape: Math.random() > 0.5 ? 'circle' : 'square',
+      });
+    }
+    setParticles(arr);
+    setTimeout(() => setParticles([]), 4500);
+  };
+
+
   useEffect(() => {
     const fetchProfileData = async () => {
       try {
@@ -45,61 +123,125 @@ export default function ProfileScreen() {
         const userData = await AsyncStorage.getItem('user');
 
         if (!token || !userData) {
-          router.replace('/auth');
+          setTimeout(() => {
+            router.replace('/auth');
+          }, 150);
           return;
         }
 
-        setUser(JSON.parse(userData));
+        // Set user immediately from cached local storage
+        try {
+          setUser(JSON.parse(userData));
+        } catch (e) {}
 
-        // Fetch fresh user profile details (includes 2FA state)
-        const meRes = await fetch(`${API_URL}/users/me`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (meRes.ok) {
-          const freshUser = await meRes.json();
-          setUser(freshUser);
-          await AsyncStorage.setItem('user', JSON.stringify(freshUser));
-        }
-
-        // Load latest recommendation and visual checkin URL
-        const recoStr = await AsyncStorage.getItem('latestRecommendation');
-        if (recoStr) {
-          setLatestReco(JSON.parse(recoStr));
-        }
-
-        const checkinStr = await AsyncStorage.getItem('latestCheckin');
-        if (checkinStr) {
-          const parsedCheckin = JSON.parse(checkinStr);
-          if (parsedCheckin.imageUrl) {
-            setAvatarUrl(parsedCheckin.imageUrl);
+        // Load cached system config, recommendations, and checkin image first
+        try {
+          const cachedConfig = await AsyncStorage.getItem('system_config');
+          if (cachedConfig) {
+            setSystemConfig(JSON.parse(cachedConfig));
           }
-        }
+        } catch (e) {}
 
-        // Fetch actual streak from backend
-        const response = await fetch(`${API_URL}/checkins/streak`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        try {
+          const recoStr = await AsyncStorage.getItem('latestRecommendation');
+          if (recoStr) {
+            setLatestReco(JSON.parse(recoStr));
+          }
+        } catch (e) {}
 
-        if (response.ok) {
-          const streakData = await response.json();
-          setStreak(streakData);
-        }
+        try {
+          const checkinStr = await AsyncStorage.getItem('latestCheckin');
+          if (checkinStr) {
+            const parsedCheckin = JSON.parse(checkinStr);
+            if (parsedCheckin.imageUrl) {
+              setAvatarUrl(parsedCheckin.imageUrl);
+            }
+          }
+        } catch (e) {}
 
-        // Fetch badges from backend
-        const badgesResponse = await fetch(`${API_URL}/checkins/badges`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
+        // DISABLE LOADING SPINNER IMMEDIATELY!
+        // This ensures the screen renders instantly using cached local state
+        // and doesn't get stuck on the ActivityIndicator if network calls hang!
+        setLoading(false);
 
-        if (badgesResponse.ok) {
-          const badgesData = await badgesResponse.json();
-          setBadges(badgesData);
-        }
+        // Define a local fetch with timeout to prevent hanging connections
+        const fetchWithTimeout = async (url: string, options: any = {}, timeout: number = 2500) => {
+          const controller = new AbortController();
+          const id = setTimeout(() => controller.abort(), timeout);
+          try {
+            const response = await fetch(url, { ...options, signal: controller.signal });
+            clearTimeout(id);
+            return response;
+          } catch (err) {
+            clearTimeout(id);
+            throw err;
+          }
+        };
+
+        // Fetch fresh user profile details (includes 2FA state) in background
+        try {
+          const meRes = await fetchWithTimeout(`${API_URL}/users/me`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+
+          if (meRes.status === 401) {
+            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('user');
+            setTimeout(() => {
+              router.replace('/auth');
+            }, 150);
+            return;
+          }
+
+          if (meRes.ok) {
+            const freshUser = await meRes.json();
+            setUser(freshUser);
+            await AsyncStorage.setItem('user', JSON.stringify(freshUser));
+          }
+        } catch (e) {}
+
+        // Fetch dynamic system configuration in background
+        try {
+          const configRes = await fetchWithTimeout(`${API_URL}/system-config`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
+          if (configRes.ok) {
+            const data = await configRes.json();
+            setSystemConfig(data);
+            await AsyncStorage.setItem('system_config', JSON.stringify(data));
+          }
+        } catch (e) {}
+
+        // Fetch actual streak from backend in background
+        try {
+          const response = await fetchWithTimeout(`${API_URL}/checkins/streak`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (response.ok) {
+            const streakData = await response.json();
+            setStreak(streakData);
+          }
+        } catch (e) {}
+
+        // Fetch badges from backend in background
+        try {
+          const badgesResponse = await fetchWithTimeout(`${API_URL}/checkins/badges`, {
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+          });
+
+          if (badgesResponse.ok) {
+            const badgesData = await badgesResponse.json();
+            setBadges(badgesData);
+          }
+        } catch (e) {}
+
       } catch (err) {
         // Fallback to local offline state if network is unreachable
       } finally {
@@ -265,6 +407,104 @@ export default function ProfileScreen() {
     }
   };
 
+  const handlePay = async () => {
+    if (!cardName.trim()) {
+      Alert.alert('Erreur', 'Veuillez saisir le nom du titulaire de la carte.');
+      return;
+    }
+    const cleanNum = cardNumber.replace(/\s+/g, '');
+    if (cleanNum.length !== 16) {
+      Alert.alert('Erreur', 'Le numéro de carte doit contenir 16 chiffres.');
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
+      Alert.alert('Erreur', "La date d'expiration doit être au format MM/AA.");
+      return;
+    }
+    if (cardCvv.length < 3) {
+      Alert.alert('Erreur', 'Le code CVV doit contenir au moins 3 chiffres.');
+      return;
+    }
+
+    setIsPaying(true);
+    Vibration.vibrate(50);
+
+    try {
+      const token = await AsyncStorage.getItem('token');
+      const response = await fetch(`${API_URL}/users/upgrade`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || 'La transaction a échoué.');
+      }
+
+      Vibration.vibrate([0, 100, 50, 100, 50, 200]);
+      
+      const updatedUser = { ...user, plan: 'PREMIUM', tier: 'PREMIUM' };
+      setUser(updatedUser);
+      await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
+      setPaymentSuccess(true);
+      generateParticles();
+    } catch (err: any) {
+      Vibration.vibrate([0, 200, 100, 200]);
+      Alert.alert('Échec de la transaction', err.message || 'Impossible de traiter le paiement pour le moment.');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  const handleApplePay = async () => {
+    setIsApplePaying(true);
+    setFaceIdState('scanning');
+    Vibration.vibrate(30);
+
+    setTimeout(async () => {
+      try {
+        const token = await AsyncStorage.getItem('token');
+        const response = await fetch(`${API_URL}/users/upgrade`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.message || 'La transaction a échoué.');
+        }
+
+        setFaceIdState('success');
+        Vibration.vibrate([0, 100, 50, 100, 50, 200]);
+
+        const updatedUser = { ...user, plan: 'PREMIUM', tier: 'PREMIUM' };
+        setUser(updatedUser);
+        await AsyncStorage.setItem('user', JSON.stringify(updatedUser));
+
+        setTimeout(() => {
+          setIsApplePaying(false);
+          setPaymentSuccess(true);
+          generateParticles();
+        }, 1000);
+      } catch (err: any) {
+        setFaceIdState('failed');
+        Vibration.vibrate([0, 200, 100, 200]);
+        setTimeout(() => {
+          setIsApplePaying(false);
+          Alert.alert('Échec Apple Pay', err.message || 'La transaction a échoué.');
+        }, 1000);
+      }
+    }, 1500);
+  };
+
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -286,37 +526,47 @@ export default function ProfileScreen() {
       >
         
         {/* DYNAMIC STYLE PASS (FASHION PASSPORT) */}
-        <Animated.View entering={FadeInUp.duration(800).springify()} style={styles.stylePassShadow}>
+        <Animated.View entering={FadeInUp.duration(800).springify()} style={[
+          styles.stylePassShadow,
+          user?.plan === 'PREMIUM' && { shadowColor: '#D97706', shadowOpacity: 0.3, shadowRadius: 30 }
+        ]}>
           <LinearGradient
-            colors={['#1F2937', '#111827']}
+            colors={user?.plan === 'PREMIUM' ? ['#F59E0B', '#FCD34D', '#D97706', '#92400E'] : ['#1F2937', '#111827']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.stylePassCard}
           >
-            <View style={[styles.passGlow, { backgroundColor: '#8B5CF6', top: -30, right: -30 }]} />
-            <View style={[styles.passGlow, { backgroundColor: '#EC4899', bottom: -40, left: -40 }]} />
+            <View style={[styles.passGlow, { backgroundColor: user?.plan === 'PREMIUM' ? '#FFE082' : '#8B5CF6', top: -30, right: -30 }]} />
+            <View style={[styles.passGlow, { backgroundColor: user?.plan === 'PREMIUM' ? '#FFD54F' : '#EC4899', bottom: -40, left: -40 }]} />
 
             <View style={styles.passHeader}>
               <View style={styles.passBrandWrap}>
                 <Ionicons name="sparkles" size={14} color="#FFF" style={{ marginRight: 6 }} />
                 <Text style={styles.passBrandText}>STYLE TON HUMEUR</Text>
               </View>
-              <View style={styles.passCategoryBadge}>
-                <Text style={styles.passCategoryText}>PASSPORT STYLE</Text>
+              <View style={[styles.passCategoryBadge, user?.plan === 'PREMIUM' && { borderColor: '#FFF', backgroundColor: 'rgba(255,255,255,0.2)' }]}>
+                <Text style={[styles.passCategoryText, user?.plan === 'PREMIUM' && { color: '#FFF' }]}>
+                  {user?.plan === 'PREMIUM' ? '👑 GOLD PREMIUM PASS' : 'PASSPORT STYLE'}
+                </Text>
               </View>
             </View>
 
             <View style={styles.passBody}>
-              <View style={styles.passAvatarBorder}>
+              <View style={[styles.passAvatarBorder, user?.plan === 'PREMIUM' && { borderColor: '#FFF' }]}>
                 <Image 
                   source={{ uri: avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&q=80' }} 
                   style={styles.passAvatar} 
                 />
-                <View style={styles.passAvatarGlow} />
+                <View style={[styles.passAvatarGlow, user?.plan === 'PREMIUM' && { borderColor: '#FFF' }]} />
               </View>
               
               <View style={styles.passIdentityWrap}>
-                <Text numberOfLines={1} style={styles.passName}>{user?.displayName || 'Chaymae'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <Text numberOfLines={1} style={styles.passName}>{user?.displayName || 'Chaymae'}</Text>
+                  {user?.plan === 'PREMIUM' && (
+                    <MaterialCommunityIcons name="crown" size={18} color="#FFF" style={{ textShadowColor: 'rgba(0,0,0,0.3)', textShadowRadius: 3 }} />
+                  )}
+                </View>
                 <Text numberOfLines={1} style={styles.passEmail}>{user?.email || 'chaymae@email.com'}</Text>
                 
                 <View style={styles.passTagsRow}>
@@ -328,6 +578,11 @@ export default function ProfileScreen() {
                   <View style={styles.passMiniTag}>
                     <Text style={styles.passMiniTagText}>🎂 {user?.age || 22} ans</Text>
                   </View>
+                  {user?.plan === 'PREMIUM' && (
+                    <View style={[styles.passMiniTag, { backgroundColor: 'rgba(255, 255, 255, 0.25)' }]}>
+                      <Text style={[styles.passMiniTagText, { color: '#FFF' }]}>👑 Premium</Text>
+                    </View>
+                  )}
                 </View>
               </View>
             </View>
@@ -373,6 +628,57 @@ export default function ProfileScreen() {
             <Text style={styles.metricLabel}>Record Historique</Text>
           </View>
         </View>
+
+        {/* AURA PREMIUM SUBSCRIPTION STATUS / BANNER */}
+        {user?.plan !== 'PREMIUM' ? (
+          <Animated.View entering={FadeInDown.delay(100).duration(800).springify()} style={styles.upgradeBannerShadow}>
+            <LinearGradient
+              colors={['#8B5CF6', '#EC4899']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.upgradeBanner}
+            >
+              <View style={styles.upgradeHeader}>
+                <View style={styles.upgradeIconBadge}>
+                  <MaterialCommunityIcons name="crown" size={24} color="#FFD700" />
+                </View>
+                <View style={{ flex: 1, marginLeft: 12 }}>
+                  <Text style={styles.upgradeTitle}>AURA STUDIO PREMIUM</Text>
+                  <Text style={styles.upgradeSubtitle}>Libérez tout le potentiel de l'IA</Text>
+                </View>
+              </View>
+
+              <View style={styles.upgradeFeatures}>
+                <View style={styles.upgradeFeatureRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.upgradeFeatureText}>👗 Essayages virtuels cabine illimités</Text>
+                </View>
+                <View style={styles.upgradeFeatureRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.upgradeFeatureText}>🎨 Débloquer l'Analyse Colorimétrique & Beauté</Text>
+                </View>
+                <View style={styles.upgradeFeatureRow}>
+                  <Ionicons name="checkmark-circle" size={16} color="#FFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.upgradeFeatureText}>🎙️ Assistant Vocal prioritaire & sans limite</Text>
+                </View>
+              </View>
+
+              <Pressable style={styles.upgradeBtn} onPress={() => setShowPaymentModal(true)}>
+                <Text style={styles.upgradeBtnText}>Devenir Membre Premium • {systemConfig.premiumPriceMad} MAD/mois</Text>
+                <Feather name="arrow-right" size={16} color="#8B5CF6" />
+              </Pressable>
+            </LinearGradient>
+          </Animated.View>
+        ) : (
+          <View style={styles.premiumSuccessCard}>
+            <View style={styles.premiumSuccessIconFrame}>
+              <MaterialCommunityIcons name="check-decagram" size={20} color="#F59E0B" />
+            </View>
+            <Text style={styles.premiumSuccessText}>
+              Abonnement Aura Premium Actif. Vous disposez de toutes les fonctionnalités illimitées ! ✨
+            </Text>
+          </View>
+        )}
 
         {/* BADGES COLLECTION */}
         <Text style={styles.sectionTitle}>Mes Badges Collection</Text>
@@ -448,6 +754,19 @@ export default function ProfileScreen() {
             </Pressable>
 
             <View style={styles.actionDivider} />
+
+            {user?.role === 'ADMIN' && (
+              <>
+                <Pressable style={styles.actionItem} onPress={() => router.push('/admin' as any)}>
+                  <View style={[styles.actionIconFrame, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
+                    <Ionicons name="shield-checkmark" size={18} color="#F59E0B" />
+                  </View>
+                  <Text style={styles.actionText}>Panneau d'Administration</Text>
+                  <Feather name="chevron-right" size={16} color="#8A8A9E" />
+                </Pressable>
+                <View style={styles.actionDivider} />
+              </>
+            )}
 
             {/* Decconnexion */}
             <Pressable style={styles.actionItem} onPress={handleLogout}>
@@ -545,6 +864,290 @@ export default function ProfileScreen() {
             </View>
           </BlurView>
         </View>
+      </Modal>
+
+      {/* CONFETTI OVERLAY */}
+      {particles.map((p) => (
+        <ConfettiParticle
+          key={p.id}
+          left={p.left}
+          size={p.size}
+          color={p.color}
+          shape={p.shape}
+        />
+      ))}
+
+      {/* AURA PREMIUM PAYMENT MODAL */}
+      <Modal
+        visible={showPaymentModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          if (!isPaying && !isApplePaying) {
+            setShowPaymentModal(false);
+            setPaymentSuccess(false);
+          }
+        }}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.modalOverlay}>
+            <BlurView intensity={30} tint="dark" style={styles.modalBlur}>
+              <View style={[styles.modalCard, { maxHeight: '90%', width: width * 0.95, paddingBottom: 24 }]}>
+                
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <MaterialCommunityIcons name="shield-check" size={20} color="#10B981" style={{ marginRight: 6 }} />
+                    <Text style={styles.modalTitle}>Paiement Sécurisé Aura</Text>
+                  </View>
+                  {!isPaying && !isApplePaying && (
+                    <Pressable 
+                      onPress={() => {
+                        setShowPaymentModal(false);
+                        setPaymentSuccess(false);
+                      }} 
+                      style={styles.modalCloseBtn}
+                    >
+                      <Ionicons name="close" size={22} color="#FFF" />
+                    </Pressable>
+                  )}
+                </View>
+
+                {paymentSuccess ? (
+                  /* Success View */
+                  <Animated.View entering={FadeInUp.duration(600)} style={styles.paymentSuccessContainer}>
+                    <View style={styles.successGlowOrb}>
+                      <MaterialCommunityIcons name="crown" size={60} color="#FFD700" />
+                    </View>
+                    <Text style={styles.successPaymentTitle}>Bienvenue au Club Premium !</Text>
+                    <Text style={styles.successPaymentDesc}>
+                      Votre Style Pass est maintenant doré. Toutes les fonctionnalités de création look, cabine d'essayage et analyses sont désormais illimitées.
+                    </Text>
+                    <Pressable 
+                      style={styles.successDoneBtn} 
+                      onPress={() => {
+                        setShowPaymentModal(false);
+                        setPaymentSuccess(false);
+                      }}
+                    >
+                      <Text style={styles.successDoneBtnText}>Commencer l'expérience ✨</Text>
+                    </Pressable>
+                  </Animated.View>
+                ) : isApplePaying ? (
+                  /* FaceID scanning simulation view */
+                  <View style={styles.applePayContainer}>
+                    {faceIdState === 'scanning' ? (
+                      <Animated.View entering={FadeIn.duration(400)} style={styles.applePayScanner}>
+                        <Ionicons name="scan" size={80} color="#FFF" />
+                        <Text style={styles.applePayText}>Vérification FaceID / TouchID...</Text>
+                        <ActivityIndicator size="small" color="#FFF" style={{ marginTop: 12 }} />
+                      </Animated.View>
+                    ) : faceIdState === 'success' ? (
+                      <Animated.View entering={FadeIn.duration(400)} style={styles.applePaySuccess}>
+                        <Ionicons name="checkmark-circle" size={80} color="#10B981" />
+                        <Text style={[styles.applePayText, { color: '#10B981', fontWeight: '800' }]}>Paiement Approuvé</Text>
+                      </Animated.View>
+                    ) : (
+                      <Animated.View entering={FadeIn.duration(400)} style={styles.applePayFailed}>
+                        <Ionicons name="close-circle" size={80} color="#EF4444" />
+                        <Text style={[styles.applePayText, { color: '#EF4444' }]}>Échec FaceID</Text>
+                      </Animated.View>
+                    )}
+                  </View>
+                ) : (
+                  /* Main checkout page */
+                  <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 4 }}>
+                    
+                    {/* Apple / Google Pay Express Checkout */}
+                    <Text style={styles.paymentSectionLabel}>RÉGLEMENT RAPIDE</Text>
+                    <View style={styles.expressPayRow}>
+                      <Pressable style={styles.applePayBtn} onPress={handleApplePay}>
+                        <Ionicons name="logo-apple" size={18} color="#000" style={{ marginRight: 6 }} />
+                        <Text style={styles.applePayBtnText}>Apple Pay</Text>
+                      </Pressable>
+                      <Pressable style={styles.googlePayBtn} onPress={handleApplePay}>
+                        <Ionicons name="logo-google" size={16} color="#FFF" style={{ marginRight: 6 }} />
+                        <Text style={styles.googlePayBtnText}>Pay</Text>
+                      </Pressable>
+                    </View>
+
+                    <View style={styles.orDividerRow}>
+                      <View style={styles.orLine} />
+                      <Text style={styles.orText}>OU PAR CARTE BANCAIRE</Text>
+                      <View style={styles.orLine} />
+                    </View>
+
+                    {/* VIRTUAL CREDIT CARD WRAPPER */}
+                    <Pressable 
+                      onPress={() => setIsCardFlipped(!isCardFlipped)}
+                      style={styles.virtualCardWrapper}
+                    >
+                      <LinearGradient
+                        colors={isCardFlipped ? ['#1E2937', '#111827'] : ['#D4AF37', '#855E15']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                        style={styles.virtualCard}
+                      >
+                        {!isCardFlipped ? (
+                          /* Front of Card */
+                          <View style={{ flex: 1, justifyContent: 'space-between' }}>
+                            <View style={styles.cardFrontHeader}>
+                              <Text style={styles.cardBrandName}>AURA PREMIUM</Text>
+                              <MaterialCommunityIcons name="nfc" size={24} color="#FFF" />
+                            </View>
+                            
+                            <Image 
+                              source={{ uri: 'https://cdn-icons-png.flaticon.com/512/6404/6404078.png' }}
+                              style={styles.cardChip}
+                            />
+                            
+                            <Text style={styles.cardVisualNumber}>
+                              {cardNumber ? cardNumber.replace(/(.{4})/g, '$1 ').trim() : '•••• •••• •••• ••••'}
+                            </Text>
+
+                            <View style={styles.cardFrontFooter}>
+                              <View>
+                                <Text style={styles.cardVisualLabel}>TITULAIRE</Text>
+                                <Text numberOfLines={1} style={styles.cardVisualValue}>
+                                  {cardName ? cardName.toUpperCase() : 'VOTRE NOM'}
+                                </Text>
+                              </View>
+                              <View style={{ alignItems: 'flex-end' }}>
+                                <Text style={styles.cardVisualLabel}>EXPIRE</Text>
+                                <Text style={styles.cardVisualValue}>{cardExpiry || 'MM/AA'}</Text>
+                              </View>
+                            </View>
+                          </View>
+                        ) : (
+                          /* Back of Card */
+                          <View style={{ flex: 1, justifyContent: 'space-between', paddingVertical: 10 }}>
+                            <View style={styles.cardBlackStrip} />
+                            
+                            <View style={styles.cardBackCvvRow}>
+                              <View style={styles.cardWhiteStrip}>
+                                <Text style={styles.cardSignatureDummy}>Aura Member</Text>
+                              </View>
+                              <View style={styles.cardCvvBadge}>
+                                <Text style={styles.cardCvvText}>{cardCvv || '•••'}</Text>
+                              </View>
+                            </View>
+
+                            <Text style={styles.cardBackDisclaimer}>
+                              Carte de simulation pour environnement de test Aura Studio. Aucun prélèvement réel n'aura lieu.
+                            </Text>
+                          </View>
+                        )}
+                      </LinearGradient>
+                      <Text style={styles.cardFlipPrompt}>
+                        💡 Tapoter la carte pour la {isCardFlipped ? 'retourner face' : 'retourner pile'}
+                      </Text>
+                    </Pressable>
+
+                    {/* Form Fields */}
+                    <View style={styles.paymentForm}>
+                      <View style={styles.paymentInputWrapper}>
+                        <Text style={styles.paymentInputLabel}>Nom du Titulaire</Text>
+                        <TextInput
+                          style={styles.paymentInput}
+                          placeholder="Chaymae"
+                          placeholderTextColor="rgba(255,255,255,0.3)"
+                          value={cardName}
+                          onChangeText={setCardName}
+                          onFocus={() => setIsCardFlipped(false)}
+                          selectionColor="#F59E0B"
+                        />
+                      </View>
+
+                      <View style={styles.paymentInputWrapper}>
+                        <Text style={styles.paymentInputLabel}>Numéro de Carte</Text>
+                        <TextInput
+                          style={styles.paymentInput}
+                          placeholder="4532 7182 9301 8472"
+                          placeholderTextColor="rgba(255,255,255,0.3)"
+                          keyboardType="numeric"
+                          maxLength={16}
+                          value={cardNumber}
+                          onChangeText={(txt) => setCardNumber(txt.replace(/\D/g, ''))}
+                          onFocus={() => setIsCardFlipped(false)}
+                          selectionColor="#F59E0B"
+                        />
+                      </View>
+
+                      <View style={styles.paymentRowInputs}>
+                        <View style={[styles.paymentInputWrapper, { flex: 1.2, marginRight: 12 }]}>
+                          <Text style={styles.paymentInputLabel}>Date Expiration</Text>
+                          <TextInput
+                            style={styles.paymentInput}
+                            placeholder="12/28"
+                            placeholderTextColor="rgba(255,255,255,0.3)"
+                            maxLength={5}
+                            value={cardExpiry}
+                            onChangeText={(txt) => {
+                              let clean = txt.replace(/\D/g, '');
+                              if (clean.length > 2) {
+                                clean = clean.substring(0, 2) + '/' + clean.substring(2, 4);
+                              }
+                              setCardExpiry(clean);
+                            }}
+                            onFocus={() => setIsCardFlipped(false)}
+                            selectionColor="#F59E0B"
+                          />
+                        </View>
+
+                        <View style={[styles.paymentInputWrapper, { flex: 0.8 }]}>
+                          <Text style={styles.paymentInputLabel}>Code CVV</Text>
+                          <TextInput
+                            style={styles.paymentInput}
+                            placeholder="123"
+                            placeholderTextColor="rgba(255,255,255,0.3)"
+                            keyboardType="numeric"
+                            maxLength={3}
+                            secureTextEntry
+                            value={cardCvv}
+                            onChangeText={(txt) => setCardCvv(txt.replace(/\D/g, ''))}
+                            onFocus={() => setIsCardFlipped(true)}
+                            selectionColor="#F59E0B"
+                          />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Price and Action */}
+                    <View style={styles.pricingSummaryRow}>
+                      <View>
+                        <Text style={styles.pricingPeriodText}>Abonnement mensuel</Text>
+                        <Text style={styles.pricingValueText}>{systemConfig.premiumPriceMad} MAD <Text style={{ fontSize: 12, fontWeight: 'normal', color: 'rgba(255,255,255,0.5)' }}>/ mois</Text></Text>
+                      </View>
+                      <Pressable 
+                        style={[styles.paySubmitBtn, isPaying && { opacity: 0.8 }]} 
+                        onPress={handlePay}
+                        disabled={isPaying}
+                      >
+                        {isPaying ? (
+                          <ActivityIndicator size="small" color="#000" />
+                        ) : (
+                          <>
+                            <Text style={styles.paySubmitBtnText}>Confirmer</Text>
+                            <Feather name="arrow-right" size={16} color="#000" />
+                          </>
+                        )}
+                      </Pressable>
+                    </View>
+                    
+                    <Text style={styles.secureBadgeFooter}>
+                      🔒 Cryptage SSL 256 bits. Aucun frais réel ne sera facturé.
+                    </Text>
+
+                  </ScrollView>
+                )}
+
+              </View>
+            </BlurView>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
 
     </View>
@@ -1024,4 +1627,436 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
+  // Premium and Payment Styles
+  upgradeBannerShadow: {
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 16 },
+    shadowOpacity: 0.25,
+    shadowRadius: 24,
+    elevation: 8,
+    borderRadius: 24,
+    marginBottom: 30,
+    overflow: 'hidden',
+  },
+  upgradeBanner: {
+    borderRadius: 24,
+    padding: 20,
+  },
+  upgradeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  upgradeIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  upgradeTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 1.5,
+  },
+  upgradeSubtitle: {
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '600',
+  },
+  upgradeFeatures: {
+    gap: 10,
+    marginBottom: 20,
+  },
+  upgradeFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  upgradeFeatureText: {
+    color: '#FFF',
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  upgradeBtn: {
+    backgroundColor: '#FFF',
+    height: 48,
+    borderRadius: 14,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  upgradeBtnText: {
+    color: '#8B5CF6',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  premiumSuccessCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#F3E5AB',
+    shadowColor: '#D97706',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    marginBottom: 30,
+  },
+  premiumSuccessIconFrame: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  premiumSuccessText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#92400E',
+    lineHeight: 16,
+  },
+
+  // Payment Modal Specific
+  paymentSuccessContainer: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    gap: 16,
+  },
+  successGlowOrb: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 215, 0, 0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 215, 0, 0.4)',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  successPaymentTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#FFF',
+    textAlign: 'center',
+  },
+  successPaymentDesc: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 20,
+    paddingHorizontal: 10,
+  },
+  successDoneBtn: {
+    backgroundColor: '#FFD700',
+    height: 50,
+    borderRadius: 14,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 10,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  successDoneBtnText: {
+    color: '#1F2937',
+    fontSize: 14,
+    fontWeight: '800',
+  },
+
+  applePayContainer: {
+    height: 320,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applePayScanner: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  applePaySuccess: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  applePayFailed: {
+    alignItems: 'center',
+    gap: 16,
+  },
+  applePayText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#FFF',
+    marginTop: 8,
+  },
+
+  paymentSectionLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    letterSpacing: 1.5,
+    marginBottom: 10,
+    marginTop: 8,
+  },
+  expressPayRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  applePayBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#FFF',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  applePayBtnText: {
+    color: '#000',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  googlePayBtn: {
+    flex: 1,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#000',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.15)',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  googlePayBtnText: {
+    color: '#FFF',
+    fontWeight: '800',
+    fontSize: 13,
+  },
+  orDividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 14,
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  orText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#6B7280',
+    marginHorizontal: 12,
+    letterSpacing: 1.5,
+  },
+
+  virtualCardWrapper: {
+    marginVertical: 10,
+    alignItems: 'center',
+  },
+  virtualCard: {
+    width: '100%',
+    height: 180,
+    borderRadius: 16,
+    padding: 16,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+  },
+  cardFrontHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardBrandName: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFF',
+    letterSpacing: 2,
+  },
+  cardChip: {
+    width: 32,
+    height: 24,
+    borderRadius: 4,
+    opacity: 0.9,
+  },
+  cardVisualNumber: {
+    fontSize: 18,
+    color: '#FFF',
+    letterSpacing: 2,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    marginVertical: 10,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  cardFrontFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardVisualLabel: {
+    fontSize: 7,
+    color: 'rgba(255,255,255,0.6)',
+    fontWeight: '700',
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  cardVisualValue: {
+    fontSize: 11,
+    color: '#FFF',
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  cardFlipPrompt: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    fontWeight: '600',
+    marginTop: 8,
+    marginBottom: 4,
+  },
+
+  cardBlackStrip: {
+    height: 35,
+    backgroundColor: '#000',
+    marginHorizontal: -16,
+    marginTop: 4,
+  },
+  cardBackCvvRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  cardWhiteStrip: {
+    flex: 1,
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.8)',
+    justifyContent: 'center',
+    paddingLeft: 8,
+  },
+  cardSignatureDummy: {
+    fontSize: 11,
+    fontFamily: Platform.OS === 'ios' ? 'Courier New' : 'monospace',
+    color: '#4B5563',
+    fontStyle: 'italic',
+    fontWeight: '700',
+  },
+  cardCvvBadge: {
+    width: 50,
+    height: 32,
+    backgroundColor: '#FFF',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  cardCvvText: {
+    fontSize: 13,
+    color: '#000',
+    fontWeight: '800',
+  },
+  cardBackDisclaimer: {
+    fontSize: 8,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    lineHeight: 11,
+    paddingHorizontal: 12,
+  },
+
+  paymentForm: {
+    gap: 12,
+    marginVertical: 12,
+  },
+  paymentInputWrapper: {
+    gap: 6,
+  },
+  paymentInputLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+  },
+  paymentInput: {
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: '#FFF',
+    fontWeight: '700',
+  },
+  paymentRowInputs: {
+    flexDirection: 'row',
+  },
+  pricingSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 18,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.08)',
+  },
+  pricingPeriodText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#9CA3AF',
+  },
+  pricingValueText: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#FFF',
+    marginTop: 2,
+  },
+  paySubmitBtn: {
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 6,
+  },
+  paySubmitBtnText: {
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  secureBadgeFooter: {
+    fontSize: 9,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginTop: 14,
+    fontWeight: '700',
+  },
 });
+

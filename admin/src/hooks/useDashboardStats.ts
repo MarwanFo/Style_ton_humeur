@@ -23,6 +23,12 @@ export function useDashboardStats() {
         },
       });
 
+      if (response.status === 401) {
+        localStorage.removeItem('admin_token');
+        window.location.reload();
+        return;
+      }
+
       if (!response.ok) {
         throw new Error('Erreur lors de la récupération des statistiques');
       }

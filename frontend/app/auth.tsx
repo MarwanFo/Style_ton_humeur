@@ -22,6 +22,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/constants/Api';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { makeRedirectUri } from 'expo-auth-session';
 
 const { width } = Dimensions.get('window');
 
@@ -34,6 +35,12 @@ export default function AuthScreen() {
   const [showTwoFactorInput, setShowTwoFactorInput] = useState(false);
   const [twoFactorUserId, setTwoFactorUserId] = useState<number | null>(null);
   const [twoFactorCode, setTwoFactorCode] = useState('');
+
+  // Forgot Password States
+  const [showForgotInput, setShowForgotInput] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1); // 1 = Saisie e-mail, 2 = Saisie code + nouveau MDP
+  const [resetCode, setResetCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -112,30 +119,45 @@ export default function AuthScreen() {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      // In Expo Go dev mode, we must NOT specify a custom scheme.
-      // Linking.createURL without scheme generates exp://IP:PORT/--/path
-      // which Expo Go can intercept correctly.
-      const redirectUri = Linking.createURL('--/auth-callback');
-
-      const supabaseUrl = 'https://lymcnpasltqfwcjhsqvy.supabase.co';
-      const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUri)}`;
+      // Use makeRedirectUri from expo-auth-session — the PROVEN method from RecetteProject
+      const redirectUri = makeRedirectUri({ scheme: 'recetteproject' });
 
       console.log('DEBUG: Redirect URI:', redirectUri);
-      console.log('DEBUG: Auth URL:', authUrl);
-      
-      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+
+      const supabaseUrl = 'https://lymcnpasltqfwcjhsqvy.supabase.co';
+      const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5bWNucGFzbHRxZndjamhzcXZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NTUwNzAsImV4cCI6MjA5NDIzMTA3MH0.gNQXnlfzq1psCE1qXfgUM7sLta3rMJ1LZ0HfIp6atvo';
+
+      // Step 1: Get the OAuth URL from Supabase (same as RecetteProject)
+      const oauthResponse = await fetch(`${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUri)}`, {
+        method: 'GET',
+        headers: { 'apikey': supabaseAnonKey },
+        redirect: 'manual',
+      });
+
+      // The authorize endpoint returns a redirect (302) to Google's login page
+      // We need to get that URL and open it in WebBrowser
+      const googleAuthUrl = oauthResponse.headers.get('location') 
+        || `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUri)}`;
+
+      console.log('DEBUG: Opening auth URL');
+
+      // Step 2: Open the auth session (exact same as RecetteProject)
+      const result = await WebBrowser.openAuthSessionAsync(googleAuthUrl, redirectUri);
+
       console.log('DEBUG: Auth result type:', result.type);
-      
+
       if (result.type === 'success' && result.url) {
+        console.log('DEBUG: Callback URL received');
         const url = result.url;
-        console.log('DEBUG: Callback URL:', url);
         let accessToken: string | null = null;
-        
+
+        // Parse token from URL fragment (#access_token=...) or query (?access_token=...)
         if (url.includes('#')) {
           const fragment = url.split('#')[1];
           const params = new URLSearchParams(fragment);
           accessToken = params.get('access_token');
-        } else if (url.includes('?')) {
+        }
+        if (!accessToken && url.includes('?')) {
           const query = url.split('?')[1];
           const params = new URLSearchParams(query);
           accessToken = params.get('access_token');
@@ -144,27 +166,25 @@ export default function AuthScreen() {
         console.log('DEBUG: Access token found:', !!accessToken);
 
         if (accessToken) {
-          const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5bWNucGFzbHRxZndjamhzcXZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NTUwNzAsImV4cCI6MjA5NDIzMTA3MH0.gNQXnlfzq1psCE1qXfgUM7sLta3rMJ1LZ0HfIp6atvo';
+          // Step 3: Get user profile from Supabase using the token
           const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
               'apikey': supabaseAnonKey,
             }
           });
-          
-          console.log('DEBUG: Supabase user response status:', userResponse.status);
-          
+
           if (!userResponse.ok) {
-            const errText = await userResponse.text();
-            throw new Error(`Impossible de récupérer le profil (${userResponse.status}): ${errText}`);
+            throw new Error('Impossible de récupérer le profil Google');
           }
-          
+
           const supabaseUser = await userResponse.json();
           const email = supabaseUser.email;
           const displayName = supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'Utilisateur Google';
 
-          console.log('DEBUG: Google user email:', email, 'name:', displayName);
+          console.log('DEBUG: Google user:', email, displayName);
 
+          // Step 4: Send to our NestJS backend to create/login the user
           const response = await fetch(`${API_URL}/auth/google`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -174,23 +194,23 @@ export default function AuthScreen() {
           const data = await response.json();
 
           if (!response.ok) {
-            throw new Error(data.message || 'Impossible de se connecter avec Google.');
+            throw new Error(data.message || 'Connexion Google échouée.');
           }
 
           await AsyncStorage.setItem('token', data.access_token);
           await AsyncStorage.setItem('user', JSON.stringify(data.user));
-          
+
           Alert.alert('Connexion réussie', `Bienvenue ${data.user.displayName} !`);
           router.replace('/(tabs)');
         } else {
-          Alert.alert('Erreur', 'Aucun token trouvé dans la réponse Google.');
+          Alert.alert('Erreur', 'Aucun token trouvé dans la réponse.');
         }
       } else if (result.type === 'dismiss' || result.type === 'cancel') {
-        console.log('DEBUG: Auth cancelled or dismissed');
+        console.log('DEBUG: Auth dismissed by user');
       }
     } catch (err: any) {
       console.log('Google Auth Error:', err);
-      Alert.alert('Erreur Google', err.message || 'La connexion a été annulée ou a échoué.');
+      Alert.alert('Erreur Google', err.message || 'La connexion a échoué.');
     } finally {
       setLoading(false);
     }
@@ -228,6 +248,81 @@ export default function AuthScreen() {
     }
   };
 
+  const handleForgotPasswordRequest = async () => {
+    if (!email) {
+      Alert.alert('Erreur', 'Veuillez saisir votre adresse e-mail.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Impossible de générer le code de réinitialisation.');
+      }
+
+      // If development returned the code directly, we can notify/pre-fill it (makes testing super easy!)
+      if (data.code) {
+        console.log('DEBUG: Code de réinitialisation:', data.code);
+      }
+
+      Alert.alert('Code généré', 'Le code de réinitialisation à 6 chiffres a été généré et affiché dans la console serveur.');
+      setForgotStep(2);
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async () => {
+    if (!resetCode || resetCode.length !== 6) {
+      Alert.alert('Erreur', 'Veuillez saisir le code à 6 chiffres.');
+      return;
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      Alert.alert('Erreur', 'Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/auth/reset-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code: resetCode, pass: newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || 'La réinitialisation a échoué.');
+      }
+
+      Alert.alert('Succès', 'Votre mot de passe a été modifié avec succès. Vous pouvez maintenant vous connecter.');
+      setShowForgotInput(false);
+      setForgotStep(1);
+      setResetCode('');
+      setNewPassword('');
+      setPassword(''); // clear old password input
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   return (
     <KeyboardAvoidingView 
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
@@ -263,7 +358,7 @@ export default function AuthScreen() {
         <Animated.View entering={FadeInDown.delay(200).duration(800).springify()} style={styles.glassWrapper}>
           <BlurView intensity={90} tint="light" style={styles.glassCard}>
             
-            {showTwoFactorInput ? (
+             {showTwoFactorInput ? (
               <View style={styles.formContainer}>
                 <Text style={styles.twoFactorTitle}>🔑 Validation en deux étapes</Text>
                 <Text style={styles.twoFactorDesc}>
@@ -306,6 +401,116 @@ export default function AuthScreen() {
                   onPress={() => {
                     setShowTwoFactorInput(false);
                     setTwoFactorCode('');
+                  }}
+                  style={styles.backBtn}
+                >
+                  <Text style={styles.backBtnText}>Retour à la connexion</Text>
+                </Pressable>
+              </View>
+            ) : showForgotInput ? (
+              <View style={styles.formContainer}>
+                {forgotStep === 1 ? (
+                  <>
+                    <Text style={styles.twoFactorTitle}>🔑 Réinitialisation</Text>
+                    <Text style={styles.twoFactorDesc}>
+                      Saisissez votre e-mail pour recevoir un code de validation temporaire à 6 chiffres.
+                    </Text>
+
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.inputLabel}>Adresse Email</Text>
+                      <View style={styles.inputContainer}>
+                        <Feather name="mail" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                        <TextInput 
+                          placeholder="votre@email.com" 
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="email-address"
+                          autoCapitalize="none"
+                          value={email}
+                          onChangeText={setEmail}
+                          style={styles.input}
+                          selectionColor="#8B5CF6"
+                        />
+                      </View>
+                    </View>
+
+                    <Pressable style={styles.actionBtn} onPress={handleForgotPasswordRequest} disabled={loading}>
+                      <LinearGradient 
+                        colors={['#8B5CF6', '#EC4899']} 
+                        start={{ x: 0, y: 0 }} 
+                        end={{ x: 1, y: 1 }} 
+                        style={styles.actionGradient}
+                      >
+                        {loading ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <Text style={styles.actionText}>Obtenir le code</Text>
+                        )}
+                      </LinearGradient>
+                    </Pressable>
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.twoFactorTitle}>🔒 Nouveau mot de passe</Text>
+                    <Text style={styles.twoFactorDesc}>
+                      Saisissez le code à 6 chiffres affiché dans la console et choisissez votre nouveau mot de passe.
+                    </Text>
+
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.inputLabel}>Code de validation</Text>
+                      <View style={styles.inputContainer}>
+                        <Feather name="shield" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                        <TextInput 
+                          placeholder="000000" 
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="numeric"
+                          maxLength={6}
+                          value={resetCode}
+                          onChangeText={setResetCode}
+                          style={styles.input}
+                          selectionColor="#8B5CF6"
+                        />
+                      </View>
+                    </View>
+
+                    <View style={styles.inputWrapper}>
+                      <Text style={styles.inputLabel}>Nouveau mot de passe</Text>
+                      <View style={styles.inputContainer}>
+                        <Feather name="lock" size={18} color="#8B5CF6" style={styles.inputIcon} />
+                        <TextInput 
+                          placeholder="••••••••" 
+                          placeholderTextColor="#9CA3AF"
+                          secureTextEntry
+                          value={newPassword}
+                          onChangeText={setNewPassword}
+                          style={styles.input}
+                          selectionColor="#8B5CF6"
+                        />
+                      </View>
+                    </View>
+
+                    <Pressable style={styles.actionBtn} onPress={handleResetPasswordSubmit} disabled={loading}>
+                      <LinearGradient 
+                        colors={['#8B5CF6', '#EC4899']} 
+                        start={{ x: 0, y: 0 }} 
+                        end={{ x: 1, y: 1 }} 
+                        style={styles.actionGradient}
+                      >
+                        {loading ? (
+                          <ActivityIndicator size="small" color="#FFF" />
+                        ) : (
+                          <Text style={styles.actionText}>Mettre à jour le mot de passe</Text>
+                        )}
+                      </LinearGradient>
+                    </Pressable>
+                  </>
+                )}
+
+                <Pressable 
+                  onPress={() => {
+                    setShowForgotInput(false);
+                    setForgotStep(1);
+                    setResetCode('');
+                    setNewPassword('');
                   }}
                   style={styles.backBtn}
                 >
@@ -382,6 +587,18 @@ export default function AuthScreen() {
                       />
                     </View>
                   </View>
+
+                  {isLogin && (
+                    <Pressable 
+                      onPress={() => {
+                        setShowForgotInput(true);
+                        setForgotStep(1);
+                      }} 
+                      style={styles.forgotPassBtn}
+                    >
+                      <Text style={styles.forgotPassText}>Mot de passe oublié ?</Text>
+                    </Pressable>
+                  )}
 
                   {!isLogin && (
                     <>
@@ -712,5 +929,18 @@ const styles = StyleSheet.create({
     color: '#111827',
     fontSize: 15,
     fontWeight: '700',
+  },
+  forgotPassBtn: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+    marginBottom: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 4,
+  },
+  forgotPassText: {
+    fontSize: 13,
+    color: '#8B5CF6',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
 });
