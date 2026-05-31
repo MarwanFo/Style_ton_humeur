@@ -112,7 +112,7 @@ export default function AuthScreen() {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      const scheme = 'aura-studio';
+      const scheme = 'recetteproject';
       const redirectUri = Linking.createURL('auth-callback', { scheme });
       
       const supabaseUrl = 'https://lymcnpasltqfwcjhsqvy.supabase.co';
