@@ -498,7 +498,7 @@ export default function HomeScreen() {
           <View style={styles.grid}>
             
             {/* FEATURE 1: STYLE */}
-            <Pressable style={styles.cardWrapper} onPress={handleScanStyle}>
+            <Pressable style={styles.cardWrapper} onPress={() => router.push('/style-analysis-intro')}>
               <LinearGradient colors={['#6366F1', '#A855F7']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.card}>
                 <View style={styles.cardTopRow}>
                   <View style={[styles.iconFrame, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
