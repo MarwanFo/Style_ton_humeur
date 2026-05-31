@@ -3,6 +3,7 @@ import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { generateSecret, generateURI, verify } from 'otplib';
+import axios from 'axios';
 
 @Injectable()
 export class AuthService {
@@ -111,6 +112,20 @@ export class AuthService {
     const user = await this.usersService.findById(userId);
     if (!user) {
       throw new UnauthorizedException('User not found');
+    }
+    return this.login(user);
+  }
+
+  async loginWithGoogleProfile(email: string, displayName: string) {
+    let user = await this.usersService.findByEmail(email);
+    if (!user) {
+      user = await this.usersService.create({
+        email,
+        passwordHash: '',
+        displayName,
+        gender: 'femme',
+        age: 20,
+      });
     }
     return this.login(user);
   }

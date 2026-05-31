@@ -73,4 +73,10 @@ export class AuthController {
     }
     return { success: true };
   }
+
+  @Post('google')
+  @HttpCode(HttpStatus.OK)
+  async googleLogin(@Body() body: { email: string; displayName: string }) {
+    return this.authService.loginWithGoogleProfile(body.email, body.displayName);
+  }
 }

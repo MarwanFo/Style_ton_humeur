@@ -20,8 +20,12 @@ import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL } from '@/constants/Api';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
 
 const { width } = Dimensions.get('window');
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function AuthScreen() {
   const router = useRouter();
@@ -100,6 +104,78 @@ export default function AuthScreen() {
       }
     } catch (err: any) {
       Alert.alert('Erreur', err.message || 'Une erreur est survenue.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleAuth = async () => {
+    setLoading(true);
+    try {
+      const scheme = 'styletonhumeur';
+      const redirectUri = Linking.createURL('auth-callback', { scheme });
+      
+      const supabaseUrl = 'https://lymcnpasltqfwcjhsqvy.supabase.co';
+      const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUri)}`;
+
+      console.log('DEBUG: Starting Google Auth via Supabase proxy, redirecting to:', redirectUri);
+      
+      const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+      
+      if (result.type === 'success' && result.url) {
+        const url = result.url;
+        let accessToken = null;
+        
+        if (url.includes('#')) {
+          const fragment = url.split('#')[1];
+          const params = new URLSearchParams(fragment);
+          accessToken = params.get('access_token');
+        } else if (url.includes('?')) {
+          const query = url.split('?')[1];
+          const params = new URLSearchParams(query);
+          accessToken = params.get('access_token');
+        }
+
+        if (accessToken) {
+          const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'apiKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5bWNucGFzbHRxZndjamhzcXZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NTUwNzAsImV4cCI6MjA5NDIzMTA3MH0.gNQXnlfzq1psCE1qXfgUM7sLta3rMJ1LZ0HfIp6atvo'
+            }
+          });
+          
+          if (!userResponse.ok) {
+            throw new Error('Impossible de récupérer le profil utilisateur de Supabase');
+          }
+          
+          const supabaseUser = await userResponse.json();
+          const email = supabaseUser.email;
+          const displayName = supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'Utilisateur Google';
+
+          const response = await fetch(`${API_URL}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, displayName }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || 'Impossible de se connecter avec Google.');
+          }
+
+          await AsyncStorage.setItem('token', data.access_token);
+          await AsyncStorage.setItem('user', JSON.stringify(data.user));
+          
+          Alert.alert('Connexion réussie', `Bienvenue ${data.user.displayName} !`);
+          router.replace('/(tabs)');
+        } else {
+          Alert.alert('Erreur', 'Impossible de récupérer le jeton de connexion Google.');
+        }
+      }
+    } catch (err: any) {
+      console.log('Google Auth Error:', err);
+      Alert.alert('Erreur Google', err.message || 'La connexion a été annulée ou a échoué.');
     } finally {
       setLoading(false);
     }
@@ -332,7 +408,6 @@ export default function AuthScreen() {
                     </>
                   )}
 
-                  {/* ACTION CTA (Vibrant Purple/Pink Gradient) */}
                   <Pressable style={styles.actionBtn} onPress={handleAuth} disabled={loading}>
                     <LinearGradient 
                       colors={['#8B5CF6', '#EC4899']} 
@@ -346,6 +421,17 @@ export default function AuthScreen() {
                         <Text style={styles.actionText}>{isLogin ? 'Accéder' : 'Rejoindre'}</Text>
                       )}
                     </LinearGradient>
+                  </Pressable>
+
+                  <View style={styles.divider}>
+                    <View style={styles.line} />
+                    <Text style={styles.dividerText}>OU</Text>
+                    <View style={styles.line} />
+                  </View>
+
+                  <Pressable style={styles.googleButton} onPress={handleGoogleAuth} disabled={loading}>
+                    <Ionicons name="logo-google" size={18} color="#111827" style={styles.googleIcon} />
+                    <Text style={styles.googleButtonText}>Continuer avec Google</Text>
                   </Pressable>
 
                 </View>
@@ -572,5 +658,44 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8B5CF6',
     fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 18,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#EDE9FE',
+  },
+  dividerText: {
+    color: '#9CA3AF',
+    marginHorizontal: 12,
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    height: 56,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#EDE9FE',
+    shadowColor: '#8B5CF6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  googleIcon: {
+    marginRight: 10,
+  },
+  googleButtonText: {
+    color: '#111827',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });
