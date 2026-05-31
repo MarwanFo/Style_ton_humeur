@@ -114,9 +114,13 @@ export default function HomeScreen() {
 
   const handleDeleteFavorite = async (favToDelete: any) => {
     try {
-      const updated = favorites.filter((f: any) => 
-        f.style_keywords?.join() !== favToDelete.style_keywords?.join()
-      );
+      const updated = favorites.filter((f: any) => {
+        if (f.id && favToDelete.id) {
+          // unique identifier check
+          return f.id !== favToDelete.id || f.isFittingRoomLook !== favToDelete.isFittingRoomLook || f.fittingScore !== favToDelete.fittingScore;
+        }
+        return f.style_keywords?.join() !== favToDelete.style_keywords?.join();
+      });
       setFavorites(updated);
       await AsyncStorage.setItem('savedRecommendations', JSON.stringify(updated));
     } catch (err) {

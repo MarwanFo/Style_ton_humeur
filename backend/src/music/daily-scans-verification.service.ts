@@ -6,39 +6,24 @@ export class DailyScansVerificationService {
   constructor(private readonly prisma: PrismaService) {}
 
   async verifyDailyScans(userId: number) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const missingScans: string[] = [];
-
-    // 1. Check Style & Sentiment (both in DailyCheckIn)
-    const todayCheckIn = await this.prisma.dailyCheckIn.findFirst({
-      where: {
-        userId,
-        checkinDate: today,
-      },
+    const todayCheckin = await this.prisma.dailyCheckIn.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
     });
 
-    if (!todayCheckIn) {
-      missingScans.push('style', 'sentiment');
+    if (!todayCheckin) {
+      return {
+        ready: false,
+        missingScans: ['style_or_sentiment'],
+      };
     }
 
-    // 2. Check Beauty (in BeautyRoutine)
-    const todayBeauty = await this.prisma.recommendation.findFirst({
-      where: {
-        userId,
-        recommendationDate: today,
-      },
-    });
-
-    // On vérifie si le champ makeup n'est pas vide (signe qu'un scan beauté a été fait)
-    if (!todayBeauty || !todayBeauty.makeup || Object.keys(todayBeauty.makeup as object).length === 0) {
-      missingScans.push('beauty');
-    }
+    // Résilience fuseaux horaires : moins de 16 heures
+    const ready = (new Date().getTime() - new Date(todayCheckin.createdAt).getTime()) < 16 * 60 * 60 * 1000;
 
     return {
-      ready: missingScans.length === 0,
-      missingScans,
+      ready,
+      missingScans: ready ? [] : ['style_or_sentiment'],
     };
   }
 }

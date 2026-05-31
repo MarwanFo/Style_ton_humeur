@@ -43,12 +43,34 @@ export default function FittingRoomScreen() {
   const scanPosition = useSharedValue(-20);
   const laserOpacity = useSharedValue(0);
 
+  const saveFittingRoomState = async (
+    equipped: boolean[],
+    img: string | null,
+    score: number,
+    completed: boolean,
+    recoId: number | string,
+    idx: number
+  ) => {
+    try {
+      const stateKey = `fitting_room_state_${recoId}_${idx}`;
+      await AsyncStorage.setItem(stateKey, JSON.stringify({
+        equippedItems: equipped,
+        imageUrl: img,
+        compatibilityScore: score,
+        scanCompleted: completed
+      }));
+    } catch (e) {
+      console.log('Error saving fitting room state:', e);
+    }
+  };
+
   useEffect(() => {
     const initData = async () => {
       try {
-        // Load index from params
+        let activeIdx = 0;
         if (params.outfitIndex) {
-          setOutfitIndex(parseInt(params.outfitIndex as string, 10));
+          activeIdx = parseInt(params.outfitIndex as string, 10);
+          setOutfitIndex(activeIdx);
         }
 
         const recoStr = await AsyncStorage.getItem('latestRecommendation');
@@ -56,27 +78,39 @@ export default function FittingRoomScreen() {
           const parsed = JSON.parse(recoStr);
           setRecommendation(parsed);
 
-          // Get image URL if visual check-in
-          if (parsed.imageUrl) {
-            setImageUrl(parsed.imageUrl);
-          } else if (parsed.checkin?.imageUrl) {
-            setImageUrl(parsed.checkin.imageUrl);
+          // Check if there is a saved state for this specific fitting room combination
+          const stateKey = `fitting_room_state_${parsed.id}_${activeIdx}`;
+          const savedStateStr = await AsyncStorage.getItem(stateKey);
+
+          if (savedStateStr) {
+            const savedState = JSON.parse(savedStateStr);
+            setEquippedItems(savedState.equippedItems || []);
+            setImageUrl(savedState.imageUrl || null);
+            setCompatibilityScore(savedState.compatibilityScore || 90);
+            setScanCompleted(savedState.scanCompleted || false);
           } else {
-            const checkinStr = await AsyncStorage.getItem('latestCheckin');
-            if (checkinStr) {
-              const parsedCheckin = JSON.parse(checkinStr);
-              if (parsedCheckin.imageUrl) {
-                setImageUrl(parsedCheckin.imageUrl);
+            // Get image URL if visual check-in
+            if (parsed.imageUrl) {
+              setImageUrl(parsed.imageUrl);
+            } else if (parsed.checkin?.imageUrl) {
+              setImageUrl(parsed.checkin.imageUrl);
+            } else {
+              const checkinStr = await AsyncStorage.getItem('latestCheckin');
+              if (checkinStr) {
+                const parsedCheckin = JSON.parse(checkinStr);
+                if (parsedCheckin.imageUrl) {
+                  setImageUrl(parsedCheckin.imageUrl);
+                }
               }
             }
-          }
 
-          // Fetch outfit details
-          const outfits = parsed.outfits || [];
-          const activeOutfit = outfits[parseInt(params.outfitIndex as string, 10) || 0];
-          if (activeOutfit && activeOutfit.pieces) {
-            // Equip all by default
-            setEquippedItems(new Array(activeOutfit.pieces.length).fill(true));
+            // Fetch outfit details
+            const outfits = parsed.outfits || [];
+            const activeOutfit = outfits[activeIdx];
+            if (activeOutfit && activeOutfit.pieces) {
+              // Equip all by default
+              setEquippedItems(new Array(activeOutfit.pieces.length).fill(true));
+            }
           }
         }
       } catch (err) {
@@ -95,6 +129,10 @@ export default function FittingRoomScreen() {
     setEquippedItems(next);
     // Reset scan if user changes items
     setScanCompleted(false);
+
+    if (recommendation) {
+      saveFittingRoomState(next, imageUrl, compatibilityScore, false, recommendation.id, outfitIndex);
+    }
   };
 
   const startFittingScan = async () => {
@@ -119,18 +157,26 @@ export default function FittingRoomScreen() {
       true
     );
 
+    let finalImgUrl = imageUrl;
+
     try {
       const token = await AsyncStorage.getItem('token');
       // If we don't have a scanned image (e.g. from the questionnaire), use a default model silhouette
       const humanImg = imageUrl || "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&q=80";
       
       // Select garment item image (different images depending on active outfit style)
-      let garmentImageUrl = "https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=600&q=80"; // default cool brown leather jacket
+      // Flat-lay product shots on clean background work 1000% better for IDM-VTON try-on
+      let garmentImageUrl = "https://images.unsplash.com/photo-1551028719-00167b16eac5?w=600&q=80"; // default cool leather jacket flat-lay
+      const combinedText = ((activeOutfit.title || "") + " " + (activeOutfit.pieces || []).join(" ")).toLowerCase();
       
-      if (activeOutfit.title.toLowerCase().includes('sport') || activeOutfit.title.toLowerCase().includes('décontracté')) {
-        garmentImageUrl = "https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=600&q=80"; // White t-shirt
-      } else if (activeOutfit.title.toLowerCase().includes('chic') || activeOutfit.title.toLowerCase().includes('élégant')) {
-        garmentImageUrl = "https://images.unsplash.com/photo-1617137968427-85924c800a22?w=600&q=80"; // Smart dark blue blazer
+      if (combinedText.includes('hoodie') || combinedText.includes('sweat') || combinedText.includes('capuche')) {
+        garmentImageUrl = "https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=600&q=80"; // Clean black hoodie flat-lay
+      } else if (combinedText.includes('sport') || combinedText.includes('t-shirt') || combinedText.includes('chemise') || combinedText.includes('haut')) {
+        garmentImageUrl = "https://images.unsplash.com/photo-1581655353564-df123a1eb820?w=600&q=80"; // Clean white t-shirt flat-lay
+      } else if (combinedText.includes('chic') || combinedText.includes('élégant') || combinedText.includes('costume') || combinedText.includes('blazer') || combinedText.includes('veste')) {
+        garmentImageUrl = "https://images.unsplash.com/photo-1598808503746-f34c53b9323e?w=600&q=80"; // Clean dark blue blazer flat-lay
+      } else if (combinedText.includes('jean') || combinedText.includes('denim') || combinedText.includes('pantalon')) {
+        garmentImageUrl = "https://images.unsplash.com/photo-1576995853123-5a10305d93c0?w=600&q=80"; // Clean denim jacket flat-lay
       }
 
       const response = await fetch(`${API_URL}/checkins/virtual-try-on`, {
@@ -148,6 +194,7 @@ export default function FittingRoomScreen() {
       const resData = await response.json();
       if (response.ok && resData.success && resData.tryOnUrl) {
         setImageUrl(resData.tryOnUrl);
+        finalImgUrl = resData.tryOnUrl;
       } else {
         Alert.alert('Mode Simulé', "L'IA VTON a échoué (limite d'API ou format). Affichage de la simulation.");
       }
@@ -155,11 +202,11 @@ export default function FittingRoomScreen() {
       console.log('VTON fetch error:', err);
       Alert.alert('Mode Simulé', "L'IA VTON n'a pas pu être contactée. Affichage de la simulation.");
     } finally {
-      finishScan(equippedCount);
+      finishScan(equippedCount, finalImgUrl);
     }
   };
 
-  const finishScan = (equippedCount: number) => {
+  const finishScan = (equippedCount: number, finalImgUrl: string | null) => {
     setIsScanning(false);
     setScanCompleted(true);
     laserOpacity.value = withTiming(0, { duration: 300 });
@@ -169,6 +216,10 @@ export default function FittingRoomScreen() {
     const baseScore = 88 + Math.floor(Math.random() * 8); // 88 to 95
     const finalScore = Math.floor(baseScore * (equippedCount / equippedItems.length));
     setCompatibilityScore(finalScore);
+
+    if (recommendation) {
+      saveFittingRoomState(equippedItems, finalImgUrl, finalScore, true, recommendation.id, outfitIndex);
+    }
   };
 
   // Animated style for laser scan bar
@@ -217,7 +268,7 @@ export default function FittingRoomScreen() {
       const title = `${activeOutfit.title} (${compatibilityScore}%)`;
 
       const isExist = favs.some((f: any) => 
-        f.style_keywords?.join() === [title, ...(recommendation.style_keywords || [])].join()
+        f.id === recommendation.id && f.isFittingRoomLook && f.fittingScore === compatibilityScore
       );
 
       if (isExist) {

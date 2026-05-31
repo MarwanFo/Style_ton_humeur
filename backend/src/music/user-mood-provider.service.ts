@@ -49,27 +49,11 @@ export class UserMoodProvider {
       orderBy: { createdAt: 'desc' },
     });
 
-    // On vérifie si une recommandation complète (Style/Beauté/Sentiments) existe
-    if (!latestRecommendation) {
-      console.log('[UserMoodProvider] Aucune recommandation de style trouvée');
-      return null;
-    }
-
-    // On vérifie si la recommandation date d'aujourd'hui (depuis minuit local)
-    // On utilise une comparaison de chaînes de caractères sur la date YYYY-MM-DD pour éviter les erreurs de fuseaux horaires
-    const todayStr = new Date().toISOString().split('T')[0];
-    const recoDateStr = new Date(latestRecommendation.createdAt).toISOString().split('T')[0];
-    
-    console.log(`[UserMoodProvider] Comparaison dates : Aujourd'hui=${todayStr}, Recommandation=${recoDateStr}`);
-
-    if (recoDateStr !== todayStr) {
-      console.log(`[UserMoodProvider] Blocage : La recommandation de style (${recoDateStr}) n'est pas celle d'aujourd'hui (${todayStr})`);
-      return null;
-    }
-
     console.log('[UserMoodProvider] Profil émotionnel validé avec succès pour aujourd\'hui');
     const profileTags = ((user.profilePreferences?.styleTags as string[]) || []).filter(Boolean);
-    const recommendationTags = this.extractStyleTagsFromRecommendation(latestRecommendation?.outfits as any[] | undefined);
+    const recommendationTags = latestRecommendation
+      ? this.extractStyleTagsFromRecommendation(latestRecommendation.outfits as any[] | undefined)
+      : [];
     const tags_style = [...new Set([...profileTags, ...recommendationTags])].slice(0, 6);
 
     if (!todayCheckin) {

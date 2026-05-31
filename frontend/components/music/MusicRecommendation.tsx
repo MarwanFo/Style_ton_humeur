@@ -40,6 +40,12 @@ export function MusicRecommendation({
   });
 
   useEffect(() => {
+    if (userId) {
+      api.fetchAutomaticRecommendations();
+    }
+  }, [userId]);
+
+  useEffect(() => {
     if (api.source === 'automatic' && api.tracks.length > 0) {
       setAutoTracks(api.tracks);
     } else if (api.source === 'manual' && api.tracks.length > 0) {

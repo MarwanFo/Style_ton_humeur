@@ -54,7 +54,34 @@ export class SentimentsService {
       this.logger.warn('Cloudinary upload failed for sentiment selfie, continuing without.', e);
     }
 
-    // 4. Return the complete analysis result
+    // 4. Save to DailyCheckIn if face is valid
+    const todayStr = new Date().toISOString().split('T')[0];
+    const today = new Date(todayStr);
+
+    const existingCheckin = await this.prisma.dailyCheckIn.findFirst({
+      where: { userId, checkinDate: today },
+    });
+    if (existingCheckin) {
+      await this.prisma.recommendation.deleteMany({ where: { checkinId: existingCheckin.id } });
+      await this.prisma.dailyCheckIn.delete({ where: { id: existingCheckin.id } });
+    }
+
+    await this.prisma.dailyCheckIn.create({
+      data: {
+        userId,
+        checkinDate: today,
+        moodDetected: aiResult.dominant_emotion || 'calme',
+        moodSelected: aiResult.dominant_emotion || 'calme',
+        imageUrl: cloudinaryUrl,
+        answers: {
+          source: 'sentiment_scan',
+          dominantEmotion: aiResult.dominant_emotion,
+          verdict: aiResult.verdict,
+        },
+      },
+    });
+
+    // 5. Return the complete analysis result
     return {
       isFaceValid: true,
       dominantEmotion: aiResult.dominant_emotion,

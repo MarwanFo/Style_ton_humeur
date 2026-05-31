@@ -56,7 +56,7 @@ export default function StyleAnalysisScreen() {
           if (favsStr) {
             const favs = JSON.parse(favsStr);
             const isExist = favs.some((f: any) => 
-              f.style_keywords?.join() === parsed.style_keywords?.join()
+              f.id === parsed.id && !f.isFittingRoomLook
             );
             setIsFavorited(isExist);
           }
@@ -145,12 +145,12 @@ export default function StyleAnalysisScreen() {
       let favs = favsStr ? JSON.parse(favsStr) : [];
       
       const isExist = favs.some((f: any) => 
-        f.style_keywords?.join() === recommendation.style_keywords?.join()
+        f.id === recommendation.id && !f.isFittingRoomLook
       );
 
       if (isExist) {
         favs = favs.filter((f: any) => 
-          f.style_keywords?.join() !== recommendation.style_keywords?.join()
+          !(f.id === recommendation.id && !f.isFittingRoomLook)
         );
         setIsFavorited(false);
       } else {
@@ -252,7 +252,7 @@ export default function StyleAnalysisScreen() {
           </Animated.View>
         </Animated.View>
 
-        <Animated.View entering={FadeInDown.delay(210).duration(800).springify()} style={styles.section}>
+        {/* <Animated.View entering={FadeInDown.delay(210).duration(800).springify()} style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Routine Maquillage</Text>
             <View style={[styles.badge, { backgroundColor: '#FEF3C7' }]}><Text style={[styles.badgeText, { color: '#92400E' }]}>MAKEUP</Text></View>
@@ -265,9 +265,9 @@ export default function StyleAnalysisScreen() {
               ))}
             </View>
           ))}
-        </Animated.View>
+        </Animated.View> */}
 
-        <Animated.View entering={FadeInDown.delay(220).duration(800).springify()}>
+        {/* <Animated.View entering={FadeInDown.delay(220).duration(800).springify()}>
           <MusicRecommendation
             userId={recommendation?.userId || null}
             moodResult={{
@@ -278,7 +278,7 @@ export default function StyleAnalysisScreen() {
             initialTracks={recommendation?.music || []}
             globalLoading={loading}
           />
-        </Animated.View>
+        </Animated.View> */}
 
         {recommendation?.aiVoiceMessage && (
           <Animated.View entering={FadeInDown.delay(220).duration(800).springify()} style={styles.voiceCard}>
