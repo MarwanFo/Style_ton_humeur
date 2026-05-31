@@ -112,19 +112,24 @@ export default function AuthScreen() {
   const handleGoogleAuth = async () => {
     setLoading(true);
     try {
-      const scheme = 'recetteproject';
-      const redirectUri = Linking.createURL('auth-callback', { scheme });
-      
+      // In Expo Go dev mode, we must NOT specify a custom scheme.
+      // Linking.createURL without scheme generates exp://IP:PORT/--/path
+      // which Expo Go can intercept correctly.
+      const redirectUri = Linking.createURL('--/auth-callback');
+
       const supabaseUrl = 'https://lymcnpasltqfwcjhsqvy.supabase.co';
       const authUrl = `${supabaseUrl}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(redirectUri)}`;
 
-      console.log('DEBUG: Starting Google Auth via Supabase proxy, redirecting to:', redirectUri);
+      console.log('DEBUG: Redirect URI:', redirectUri);
+      console.log('DEBUG: Auth URL:', authUrl);
       
       const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+      console.log('DEBUG: Auth result type:', result.type);
       
       if (result.type === 'success' && result.url) {
         const url = result.url;
-        let accessToken = null;
+        console.log('DEBUG: Callback URL:', url);
+        let accessToken: string | null = null;
         
         if (url.includes('#')) {
           const fragment = url.split('#')[1];
@@ -136,21 +141,29 @@ export default function AuthScreen() {
           accessToken = params.get('access_token');
         }
 
+        console.log('DEBUG: Access token found:', !!accessToken);
+
         if (accessToken) {
+          const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5bWNucGFzbHRxZndjamhzcXZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NTUwNzAsImV4cCI6MjA5NDIzMTA3MH0.gNQXnlfzq1psCE1qXfgUM7sLta3rMJ1LZ0HfIp6atvo';
           const userResponse = await fetch(`${supabaseUrl}/auth/v1/user`, {
             headers: {
               'Authorization': `Bearer ${accessToken}`,
-              'apiKey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5bWNucGFzbHRxZndjamhzcXZ5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NTUwNzAsImV4cCI6MjA5NDIzMTA3MH0.gNQXnlfzq1psCE1qXfgUM7sLta3rMJ1LZ0HfIp6atvo'
+              'apikey': supabaseAnonKey,
             }
           });
           
+          console.log('DEBUG: Supabase user response status:', userResponse.status);
+          
           if (!userResponse.ok) {
-            throw new Error('Impossible de récupérer le profil utilisateur de Supabase');
+            const errText = await userResponse.text();
+            throw new Error(`Impossible de récupérer le profil (${userResponse.status}): ${errText}`);
           }
           
           const supabaseUser = await userResponse.json();
           const email = supabaseUser.email;
           const displayName = supabaseUser.user_metadata?.full_name || supabaseUser.user_metadata?.name || 'Utilisateur Google';
+
+          console.log('DEBUG: Google user email:', email, 'name:', displayName);
 
           const response = await fetch(`${API_URL}/auth/google`, {
             method: 'POST',
@@ -170,8 +183,10 @@ export default function AuthScreen() {
           Alert.alert('Connexion réussie', `Bienvenue ${data.user.displayName} !`);
           router.replace('/(tabs)');
         } else {
-          Alert.alert('Erreur', 'Impossible de récupérer le jeton de connexion Google.');
+          Alert.alert('Erreur', 'Aucun token trouvé dans la réponse Google.');
         }
+      } else if (result.type === 'dismiss' || result.type === 'cancel') {
+        console.log('DEBUG: Auth cancelled or dismissed');
       }
     } catch (err: any) {
       console.log('Google Auth Error:', err);
